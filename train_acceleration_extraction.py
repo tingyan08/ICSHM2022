@@ -11,15 +11,15 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
-from dataset.FeatureExtraction import FeatureExtractionDataset
+from dataset.Acceleration.FeatureExtraction import FeatureExtractionDataset
 
 
-def create_dataloader(source):
+def create_dataloader():
     num_workers = min(os.cpu_count(), 4)
-    train_dataset = FeatureExtractionDataset(path="./Data", source=source, mode="train")
+    train_dataset = FeatureExtractionDataset(path="./Data", mode="train")
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-    valid_dataset = FeatureExtractionDataset(path="./Data", source=source, mode="valid")
+    valid_dataset = FeatureExtractionDataset(path="./Data", mode="valid")
     valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=False)
 
     return train_dataloader, valid_dataloader
@@ -30,14 +30,14 @@ def main(args):
 
 
     max_epochs = args.max_epoch
-    model = import_module(f'model.{args.arch}').__dict__[args.trainer]()
+    model = import_module(f'model.Acceleration.{args.arch}').__dict__[args.trainer]()
 
     print("Total number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-    train_dataloader, valid_dataloader = create_dataloader(args.dataset)
+    train_dataloader, valid_dataloader = create_dataloader()
     
     #TensorBoard
-    save_dir = f"Logs/Extraction/{args.trainer}-{args.dataset}"
+    save_dir = f"Logs/Extraction/Acceleration-{args.trainer}"
 
     name = f"{args.description}/"
 
@@ -87,8 +87,6 @@ if __name__ == "__main__":
 
     parser.add_argument('--arch', type=str,  default="autoencoder", help = 'The file where trainer located')
     parser.add_argument('--trainer', type=str,  default="AE", help = 'The trainer we used')
-
-    parser.add_argument('--dataset', type=str,  default="Accleration", help = 'The trainer we used')
 
     parser.add_argument('--description', type=str,  default="None")
 
