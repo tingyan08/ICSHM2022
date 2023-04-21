@@ -13,7 +13,7 @@ from pytorch_lightning import LightningModule
 
 from torchinfo import summary
 
-from model.autoencoder import DamageAE, TripletAE
+from model.Displacement.autoencoder import AE, DamageAE, TripletAE
 
 
 class Encoder(nn.Module):
@@ -85,6 +85,17 @@ class CNN(LightningModule):
                     self.model.freeze()
                 self.model = self.model.encoder
 
+            elif load_model == "AE":
+                self.model = TripletAE.load_from_checkpoint(
+                "./Logs/Extraction/autoencoder_TripletAE/Final/version_0/checkpoints/epoch=00472-train_loss=0.00460899.ckpt").to(self.device)
+                if transfer:
+                    self.model.freeze()
+                self.model = self.model.encoder
+
+            else:
+                raise Exception("Pretrianed model is not applied")
+            
+
         else:
             self.model = Encoder()
         self.classifier = Classifier()
@@ -138,6 +149,7 @@ class CNN(LightningModule):
         return {"loss": total_loss ,"loss_no7": loss_no7 , "loss_no22": loss_no22, "loss_no38": loss_no38, \
                 "pred1":pred1, "pred2":pred2, "pred3": pred3, "target1":target1, "target2": target2, "target3":target3, \
                 "signal_id":signal_id}
+    
     
     def validation_step(self, batch, batch_idx):
         input, target1, target2, target3, signal_id = batch

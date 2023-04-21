@@ -167,8 +167,8 @@ class AE(LightningModule):
         loss = np.concatenate([loss], axis=0)
         mse_loss = np.concatenate([mse_loss], axis=0)
 
-        self.logger.experiment.add_scalar(f'Train/Loss/Loss', loss.mean(), self.current_epoch)
-        self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Validation/Loss/Loss', loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Validation/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
         self.log("val_loss", mse_loss.mean())
 
@@ -187,7 +187,7 @@ class AE(LightningModule):
             line2 = axes[i].plot(range(len(reonstructed_signal[i, :])), reonstructed_signal[i, :], color="tab:red", linestyle='dashed', label="Reconstructed Signal")
             axes[i].set_xticks([])
         fig.legend(handles =[line1[0], line2[0]], loc ='lower center', ncol=4)
-        self.logger.experiment.add_figure(f'Train/Visualize', fig , self.current_epoch)
+        self.logger.experiment.add_figure(f'Validation/Visualize', fig , self.current_epoch)
 
     def denormalize(self, signal, reonstructed_signal, min_max):
         n = signal.shape[0]

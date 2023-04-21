@@ -39,9 +39,8 @@ def one_hot(label):
     return no7, no22, no38
 
 class DamageIdentificationDataset(Dataset):
-    def __init__(self, path, source, mode="train") -> None:
-        self.source = source
-        self.path = os.path.join(path, source)
+    def __init__(self, path, mode="train") -> None:
+        self.path = os.path.join(path, "Displacement")
         self.train_path = os.path.join(self.path, "train")
         self.test_path = os.path.join(self.path, "test")
         self.mode = mode
