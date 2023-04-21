@@ -130,41 +130,48 @@ class AE(LightningModule):
         return mse_anchor + mse_positive + mse_negative
     
     def loss_func(self, 
-                  anchor_signal, positive_signal, negative_signal,
-                  anchor_reconstruct, positive_reconstruct, negative_reconstruct):
-        
-        mse_loss = self.reconstruction_loss(anchor_signal, positive_signal, negative_signal,
-                  anchor_reconstruct, positive_reconstruct, negative_reconstruct)
+                  anchor_signal, 
+                  anchor_reconstruct):
+        mse = nn.MSELoss()
+        mse_loss = mse(anchor_signal, anchor_reconstruct)
 
         return mse_loss
 
     def training_step(self, batch, batch_idx):
         signal_list, _, anchor_label = batch
-        anchor_signal, positive_signal, negative_signal = signal_list[0], signal_list[1], signal_list[2]
+        anchor_signal, _, _ = signal_list[0], signal_list[1], signal_list[2]
 
 
         anchor_representation = self.encoder(anchor_signal)
-        positive_representation = self.encoder(positive_signal)
-        negative_representation = self.encoder(negative_signal)
 
         anchor_reconstruct = self.decoder(anchor_representation)
-        positive_reconstruct = self.decoder(positive_representation)
-        negative_reconstruct = self.decoder(negative_representation)
 
-        mse_loss  = self.loss_func(
-            anchor_signal, positive_signal, negative_signal,
-            anchor_reconstruct, positive_reconstruct, negative_reconstruct
-        )
+        mse_loss  = self.loss_func(anchor_signal,anchor_reconstruct)
 
         loss =  mse_loss
 
-        self.log("train_loss", loss)
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
+        return {"loss": loss}
+
+
+    def validation_batch(self, batch, batch_idx):
+        signal_list, _, anchor_label = batch
+        anchor_signal, _, _ = signal_list[0], signal_list[1], signal_list[2]
+
+
+        anchor_representation = self.encoder(anchor_signal)
+
+        anchor_reconstruct = self.decoder(anchor_representation)
+
+        mse_loss  = self.loss_func(anchor_signal,anchor_reconstruct)
+
+        loss =  mse_loss
+
+        
         return {"loss": loss, "mse_loss": mse_loss, \
                 "anchor_representation":torch.permute(anchor_representation, (0, 2, 1)), "anchor_label":anchor_label, \
                 "anchor_reconstruct": anchor_reconstruct, "anchor_signal":anchor_signal}
-
         
 
     def configure_optimizers(self):
@@ -175,7 +182,7 @@ class AE(LightningModule):
     
     
 
-    def training_epoch_end(self, training_step_outputs):
+    def validation_epoch_end(self, validation_step_outputs):
         loss = []
         mse_loss = []
 
@@ -185,15 +192,15 @@ class AE(LightningModule):
         anchor_reconstruct = []
         anchor_signal = []
 
-        for step_result in training_step_outputs:
-            loss.append(step_result["loss"].cpu().detach().numpy())
-            mse_loss.append(step_result["mse_loss"].cpu().detach().numpy())
+        for step_result in validation_step_outputs:
+            loss.append(step_result["loss"].cpu().numpy())
+            mse_loss.append(step_result["mse_loss"].cpu().numpy())
 
-            anchor_representation.append(step_result["anchor_representation"].cpu().detach().numpy())
-            anchor_label.append(step_result["anchor_label"].cpu().detach().numpy())
+            anchor_representation.append(step_result["anchor_representation"].cpu().numpy())
+            anchor_label.append(step_result["anchor_label"].cpu().numpy())
 
-            anchor_reconstruct.append(step_result["anchor_reconstruct"].cpu().detach().numpy())
-            anchor_signal.append(step_result["anchor_signal"].cpu().detach().numpy())
+            anchor_reconstruct.append(step_result["anchor_reconstruct"].cpu().numpy())
+            anchor_signal.append(step_result["anchor_signal"].cpu().numpy())
 
 
             

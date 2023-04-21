@@ -11,15 +11,18 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
-from dataset.FeatureExtraction import FeatureExtractionDataset
+from dataset.DataReconstruct import DataDrivenDataset
 
 
-def create_dataloader():
+def create_dataloader(task):
     num_workers = min(os.cpu_count(), 4)
-    train_dataset = FeatureExtractionDataset(path="./Data")
+    train_dataset = DataDrivenDataset(path="./Data", mode="train", task=task)
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-    return train_dataloader
+    valid_dataset = DataDrivenDataset(path="./Data", mode="valid", task=task)
+    valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=False)
+
+    return train_dataloader, valid_dataloader
 
 
 
@@ -27,16 +30,16 @@ def main(args):
 
 
     max_epochs = args.max_epoch
-    model = import_module(f'model.{args.arch}').__dict__[args.trainer]()
+    model = import_module(f'model.{args.arch}').__dict__[args.trainer](task=args.task)
 
     print("Total number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-    train_dataloader = create_dataloader()
+    train_dataloader, valid_dataloader = create_dataloader(task=args.task)
     
     #TensorBoard
-    save_dir = f"Logs/Extraction/{args.arch}_{args.trainer}"
+    save_dir = f"Logs/Reconstruction/{args.arch}_{args.trainer}"
 
-    name = f"{args.description}/"
+    name = f"{args.task}/"
 
 
     logger = TensorBoardLogger(
@@ -48,10 +51,10 @@ def main(args):
     
     # Save top-3 val loss models
     checkpoint_best_callback = ModelCheckpoint(
-        save_top_k=1,
-        monitor="train_loss", 
+        save_top_k=3,
+        monitor="val_loss", 
         mode="min",
-        filename="{epoch:05d}-{train_loss:.8f}"
+        filename="{epoch:05d}-{val_loss:.4f}"
     )
 
     # Save model at the middle epoch and last
@@ -72,7 +75,8 @@ def main(args):
 
 
     trainer.fit(model,
-                train_dataloaders=train_dataloader)
+                train_dataloaders=train_dataloader, 
+                val_dataloaders=valid_dataloader)
     
     
     # Save args
@@ -86,8 +90,12 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
-    parser.add_argument('--arch', type=str,  default="triplet", help = 'The file where trainer located')
-    parser.add_argument('--trainer', type=str,  default="DamageAE", help = 'The trainer we used')
+    parser.add_argument('--arch', type=str,  default="unet", help = 'The file where trainer located')
+    parser.add_argument('--trainer', type=str,  default="UNet", help = 'The trainer we used')
+
+    parser.add_argument('--task', type=str, default="A")
+ 
+
 
     parser.add_argument('--description', type=str, default="None", help = 'description of the experiment')
     parser.add_argument('--version', type=int, help = 'version')
