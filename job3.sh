@@ -3,7 +3,7 @@
 ###PBS -l place=excl
 #PBS -o out.txt				
 #PBS -e err.txt				
-#PBS -N Extraction-accel
+#PBS -N Extraction-disp
 cd ~/ICSHM2022			
 
 source ~/.bashrc			

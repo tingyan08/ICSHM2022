@@ -16,7 +16,7 @@ module load cuda-11.7
 # python3 train_displacement_extraction.py --arch autoencoder --trainer DamageAE --max_epoch 500 --description Final
 # python3 train_displacement_extraction.py --arch autoencoder --trainer TripletAE --max_epoch 500 --description Final
 
-# python3 train_acceleration_extraction.py --arch autoencoder --trainer AE --max_epoch 500 --description Final
+python3 train_acceleration_extraction.py --arch autoencoder --trainer AE --max_epoch 500 --description Final
 
 # python3 train_displacement_identification.py --arch classification --trainer CNN --load_model None --transfer False --max_epoch 500 --description From_scratch
 # python3 train_displacement_identification.py --arch classification --trainer CNN --load_model DamageAE --transfer False --max_epoch 500 --description Pretrain_DamageAE

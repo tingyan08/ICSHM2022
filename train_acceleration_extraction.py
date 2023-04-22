@@ -52,9 +52,9 @@ def main(args):
     # Save top-3 val loss models
     checkpoint_best_callback = ModelCheckpoint(
         save_top_k=1,
-        monitor="val_loss", 
+        monitor="train_loss", 
         mode="min",
-        filename="{epoch:05d}-{valid_loss:.8f}"
+        filename="{epoch:05d}-{train_loss:.8f}"
     )
 
 
