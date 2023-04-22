@@ -86,7 +86,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
     parser.add_argument('--arch', type=str,  default="autoencoder", help = 'The file where trainer located')
-    parser.add_argument('--trainer', type=str,  default="DamageAE", help = 'The trainer we used')
+    parser.add_argument('--trainer', type=str,  default="AE", help = 'The trainer we used')
 
     parser.add_argument('--description', type=str,  default="None")
 

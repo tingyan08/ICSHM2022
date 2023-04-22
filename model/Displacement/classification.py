@@ -73,21 +73,21 @@ class CNN(LightningModule):
         if load_model != "None":
             if load_model == "DamageAE":
                 self.model = DamageAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-DamageAE/Final/version_0/checkpoints/epoch=00385-train_loss=0.00376394.ckpt").to(self.device)
+                "./Logs/Extraction/Displacement-DamageAE/Add_validation/version_0/checkpoints/epoch=00482-val_loss=0.00486894.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder
                 
             elif load_model == "TripletAE":
                 self.model = TripletAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-TripletAE/Final/version_0/checkpoints/epoch=00439-train_loss=0.00467694.ckpt").to(self.device)
+                "./Logs/Extraction/Displacement-TripletAE/Add_validation/version_0/checkpoints/epoch=00498-val_loss=0.00802427.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder
 
             elif load_model == "AE":
                 self.model = AE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-AE/Final/version_0/checkpoints/epoch=00453-train_loss=0.00126805.ckpt").to(self.device)
+                "Logs/Extraction/Displacement-AE/Add_validation/version_0/checkpoints/epoch=00496-val_loss=0.00344358.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder
@@ -107,22 +107,22 @@ class CNN(LightningModule):
         x = self.classifier(x)
         return x[:, :6], x[:, 6:12], x[:, 12:18]
     
-    def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=1e-5, betas=[0.9, 0.999])
-        return [optimizer], []
-    
-    
     # def configure_optimizers(self):
-    #     optimizer = optim.Adam(self.parameters(), lr=1e-4, betas=[0.9, 0.999])
-    #     # scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
-    #     #                               warmup_t=int(self.trainer.max_epochs/10), warmup_lr_init=5e-6, warmup_prefix=True)
-    #     scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
-    #                                   warmup_t=0, warmup_lr_init=5e-6, warmup_prefix=True)
+    #     optimizer = optim.Adam(self.parameters(), lr=1e-5, betas=[0.9, 0.999])
     #     return [optimizer], []
     
-    # def lr_scheduler_step(self, scheduler, optimizer_idx, metric):
-    #     scheduler.step(epoch=self.current_epoch)  # timm's scheduler need the epoch value
-    #     self.logger.experiment.add_scalar(f'Learning rate', scheduler.optimizer.param_groups[0]['lr'], self.current_epoch)
+    
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=1e-4, betas=[0.9, 0.999])
+        # scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
+        #                               warmup_t=int(self.trainer.max_epochs/10), warmup_lr_init=5e-6, warmup_prefix=True)
+        scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
+                                      warmup_t=0, warmup_lr_init=5e-6, warmup_prefix=True)
+        return [optimizer], [scheduler]
+    
+    def lr_scheduler_step(self, scheduler, optimizer_idx, metric):
+        scheduler.step(epoch=self.current_epoch)  # timm's scheduler need the epoch value
+        self.logger.experiment.add_scalar(f'Learning rate', scheduler.optimizer.param_groups[0]['lr'], self.current_epoch)
 
 
     def training_step(self, batch, batch_idx):

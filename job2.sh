@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l select=1:ncpus=4:gpu_id=1
+#PBS -l select=1:ncpus=4:gpu_id=2
 ###PBS -l place=excl
 #PBS -o out.txt				
 #PBS -e err.txt				
@@ -12,8 +12,8 @@ conda activate icshm
 module load cuda-11.7			
 
 
-python3 train_displacement_extraction.py --arch autoencoder --trainer AE --max_epoch 500 --description Add_validation
-python3 train_displacement_extraction.py --arch autoencoder --trainer DamageAE --max_epoch 500 --description Add_validation
+# python3 train_displacement_extraction.py --arch autoencoder --trainer AE --max_epoch 500 --description Add_validation
+# python3 train_displacement_extraction.py --arch autoencoder --trainer DamageAE --max_epoch 500 --description Add_validation
 python3 train_displacement_extraction.py --arch autoencoder --trainer TripletAE --max_epoch 500 --description Add_validation
 
 # python3 train_acceleration_extraction.py --arch autoencoder --trainer AE --max_epoch 500 --description Final

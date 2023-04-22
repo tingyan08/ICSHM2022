@@ -36,6 +36,7 @@ def one_hot(label):
     no38[int(label[2]*10)] = 1
 
     return no7, no22, no38
+    
 
 
 class FeatureExtractionDataset(Dataset):
