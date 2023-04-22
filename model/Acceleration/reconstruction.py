@@ -16,10 +16,8 @@ from timm.scheduler.cosine_lr import CosineLRScheduler
 from pytorch_lightning import LightningModule
 import matplotlib.pyplot as plt
 
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
 
-from scipy.special import softmax
+from model.Displacement.autoencoder import AE, DamageAE, TripletAE
 
 
 
@@ -104,13 +102,25 @@ class Classifier(nn.Module):
         x = x.view(x.shape[0], 3, 6)
         return x
 
-class AE(LightningModule):
+class EncoderDecoder(LightningModule):
 
-    def __init__(self):
+    def __init__(self, load_model=None, transfer=False):
         super().__init__()
-        self.save_hyperparameters()
+        if load_model != "None":
+            if load_model == "AE":
+                self.encoder = AE.load_from_checkpoint(
+                "./Logs/Extraction/Acceleration-AE/Final/version_0/checkpoints/epoch=00500-train_loss=0.00020019.ckpt").to(self.device)
+                if transfer:
+                    self.encoder.freeze()
+                self.encoder = self.encoder.encoder
 
-        self.encoder = Encoder()
+            else:
+                raise Exception("Pretrianed model is not applied")
+            
+
+        else:
+            self.encoder = Encoder()
+
         self.decoder = Decoder()
 
 
@@ -139,19 +149,30 @@ class AE(LightningModule):
         return mse_loss
 
     def training_step(self, batch, batch_idx):
-        signal = batch
-        representation = self.encoder(signal)
-        reconstructed_signal = self.decoder(representation)
+        masked_signal, target_signal = batch
+        representation = self.encoder(masked_signal)
+        prediction = self.decoder(representation)
 
         mse = nn.MSELoss()
-        mse_loss  = mse(signal, reconstructed_signal)
+        mse_loss  = mse(prediction, target_signal)
         loss =  mse_loss
-
-        self.log("train_loss", loss)
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
+        return {"loss": loss, "mse_loss": mse_loss}
+
+    def validation_step(self, batch, batch_idx):
+        masked_signal, target_signal = batch
+        representation = self.encoder(masked_signal)
+        prediction = self.decoder(representation)
+
+        mse = nn.MSELoss()
+        mse_loss  = mse(prediction, target_signal)
+        loss =  mse_loss
+
+        self.log("val_loss", loss)
+        
         return {"loss": loss, "mse_loss": mse_loss, \
-                "anchor_reconstruct": reconstructed_signal, "anchor_signal":signal}
+                "masked_signal": masked_signal, "prediction": prediction, "target_signal":target_signal}
 
         
 
@@ -167,16 +188,32 @@ class AE(LightningModule):
         loss = []
         mse_loss = []
 
-        anchor_reconstruct = []
-        anchor_signal = []
-
         for step_result in training_step_outputs:
             loss.append(step_result["loss"].cpu().detach().numpy())
             mse_loss.append(step_result["mse_loss"].cpu().detach().numpy())
+            
+        loss = np.concatenate([loss], axis=0)
+        mse_loss = np.concatenate([mse_loss], axis=0)
+
+        self.logger.experiment.add_scalar(f'Train/Loss/Loss', loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
 
-            anchor_reconstruct.append(step_result["anchor_reconstruct"].cpu().detach().numpy())
-            anchor_signal.append(step_result["anchor_signal"].cpu().detach().numpy())
+    def validation_epoch_end(self, validation_step_outputs):
+        loss = []
+        mse_loss = []
+
+        masked_signal = []
+        prediction = []
+        target_signal = []
+
+        for step_result in validation_step_outputs:
+            loss.append(step_result["loss"].cpu().detach().numpy())
+            mse_loss.append(step_result["mse_loss"].cpu().detach().numpy())
+
+            masked_signal.append(step_result["masked_signal"].cpu().detach().numpy())
+            prediction.append(step_result["prediction"].cpu().detach().numpy())
+            target_signal.append(step_result["target_signal"].cpu().detach().numpy())
 
 
             
@@ -186,36 +223,62 @@ class AE(LightningModule):
         self.logger.experiment.add_scalar(f'Train/Loss/Loss', loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
+        self.log("val_loss", mse_loss.mean())
     
-        anchor_reconstruct = np.concatenate(anchor_reconstruct, axis=0)
-        anchor_signal = np.concatenate(anchor_signal, axis=0)
+        masked_signal = np.concatenate(masked_signal, axis=0)
+        prediction = np.concatenate(prediction, axis=0)
+        target_signal = np.concatenate(target_signal, axis=0)
 
-        min_max = self.trainer.train_dataloader.dataset.datasets.min_max
-        anchor_signal, anchor_reconstruct = self.denormalize(anchor_signal, anchor_reconstruct, min_max)
+        min_max = self.trainer.val_dataloaders[0].dataset.min_max
+        prediction, target_signal = self.denormalize(prediction, target_signal, min_max)
 
-        self.visualize(anchor_signal[-1], anchor_reconstruct[-1])
-
-    
-    
+        self.visualize_masked_process_reconstructions(masked_signal, prediction, target_signal, "A")
+        self.visualize_masked_process_reconstructions(masked_signal, prediction, target_signal, "B")
 
 
-    def visualize(self, signal, reonstructed_signal):
-        fig, axes = plt.subplots(5, 1, figsize=(15,6))
-        for i in range(5):
-            line1 = axes[i].plot(range(len(signal[i, :])), signal[i, :], color="tab:blue",  label="Real Signal")
-            line2 = axes[i].plot(range(len(reonstructed_signal[i, :])), reonstructed_signal[i, :], color="tab:red", linestyle='dashed', label="Reconstructed Signal")
-            axes[i].set_xticks([])
-        fig.legend(handles =[line1[0], line2[0]], loc ='lower center', ncol=4)
-        self.logger.experiment.add_figure(f'Train/Visualize', fig , self.current_epoch)
-
-    def denormalize(self, signal, reonstructed_signal, min_max):
-        n = signal.shape[0]
-        output_signal = np.zeros_like(signal, dtype=float)
-        output_reconstruct = np.zeros_like(signal, dtype=float)
+    def denormalize(self, prediction, target_signal, min_max):
+        n = prediction.shape[0]
+        output_predcition = np.zeros_like(prediction, dtype=float)
+        output_target = np.zeros_like(target_signal, dtype=float)
         for i in range(n):
             for j in range(5):
-                output_reconstruct[i, j, :] = reonstructed_signal[i, j, :] * (min_max[j][1] - min_max[j][0]) + min_max[j][0]
-                output_signal[i, j, :] = signal[i, j, :] * (min_max[j][1] - min_max[j][0]) + min_max[j][0]
+                output_predcition[i, j, :] = output_predcition[i, j, :] * (min_max[j][1] - min_max[j][0]) + min_max[j][0]
+                output_target[i, j, :] = output_target[i, j, :] * (min_max[j][1] - min_max[j][0]) + min_max[j][0]
 
-        return output_signal, output_reconstruct
+        return output_predcition, output_target
+
+    def visualize_masked_process_reconstructions(self, masked_signal, prediction, target_signal, task):
+
+        target = [1, 1, 1, 1, 0] if task == "A" else [1, 1, 0, 0, 0]
+
+        for id, m in enumerate(masked_signal):
+            mask = []
+            for row in range(5):
+                unique = np.unique(m[row, :])
+                if len(unique) == 1 and unique[0] == 0:
+                    mask.append(0)
+                else:
+                    mask.append(1)
+            if target == mask:
+                break
+
+
+        plt_length = 512
+
+        bs, num, length = target_signal.shape
+        
+        fig, axes = plt.subplots(num, 1, figsize=(20,8))
+        for i in range(num):
+            if len(np.unique(masked_signal[id, i, :plt_length])) != 1:
+                line1 = axes[i].plot(range(len(target_signal[id, i, :plt_length])), target_signal[id, i, :plt_length], color="tab:orange",  label="Original Signal")
+                line2 = axes[i].plot(range(len(prediction[id, i, :plt_length])), prediction[id, i, :plt_length], color="tab:green", linestyle="--",  label="Reconstruction Signal")          
+            else:
+                line3 = axes[i].plot(range(len(target_signal[id, i, :plt_length])), target_signal[id, i, :plt_length], color="tab:blue",  label="Original Signal (Masked)")
+                line4 = axes[i].plot(range(len(prediction[id, i, :plt_length])), prediction[id, i, :plt_length], color="tab:red", linestyle="--",  label="Reconstruction Signal  (Masked)") 
+            
+            axes[i].set_xticks([])
+        
+        fig.suptitle(f"Epoch {self.current_epoch}")
+        fig.legend(handles =[line1[0], line2[0], line3[0], line4[0]], loc ='lower center', ncol=4)
+        self.logger.experiment.add_figure(f'Train/Visualize (Task {task})', fig , self.current_epoch)
 
