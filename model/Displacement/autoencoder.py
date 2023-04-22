@@ -739,9 +739,9 @@ class DamageAE(LightningModule):
         ce_loss = np.concatenate([ce_loss], axis=0)
         mse_loss = np.concatenate([mse_loss], axis=0)
 
-        self.logger.experiment.add_scalar(f'Train/Loss/Loss', loss.mean(), self.current_epoch)
-        self.logger.experiment.add_scalar(f'Train/Loss/CE Loss', ce_loss.mean(), self.current_epoch)
-        self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Validation/Loss/Loss', loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Validation/Loss/CE Loss', ce_loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Validation/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
         anchor_representation = np.concatenate(anchor_representation, axis=0)
         anchor_state = np.concatenate(anchor_state, axis=0)

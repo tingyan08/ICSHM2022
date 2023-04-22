@@ -73,21 +73,21 @@ class CNN(LightningModule):
         if load_model != "None":
             if load_model == "DamageAE":
                 self.model = DamageAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-DamageAE/Add_validation/version_0/checkpoints/epoch=00482-val_loss=0.00486894.ckpt").to(self.device)
+                "./Logs/Extraction/autoencoder_DamageAE/Final/version_0/checkpoints/epoch=00424-train_loss=0.00303373.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder
                 
             elif load_model == "TripletAE":
                 self.model = TripletAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-TripletAE/Add_validation/version_0/checkpoints/epoch=00498-val_loss=0.00802427.ckpt").to(self.device)
+                "./Logs/Extraction/autoencoder_TripletAE/Final/version_0/checkpoints/epoch=00472-train_loss=0.00460899.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder
 
             elif load_model == "AE":
                 self.model = AE.load_from_checkpoint(
-                "Logs/Extraction/Displacement-AE/Add_validation/version_0/checkpoints/epoch=00496-val_loss=0.00344358.ckpt").to(self.device)
+                "./Logs/Extraction/autoencoder_AE/Final/version_0/checkpoints/epoch=00500-train_loss=0.00128296.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder
