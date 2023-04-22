@@ -57,6 +57,13 @@ class FeatureExtractionDataset(Dataset):
             self.train_label = []
             self.train_id = []
 
+            self.valid_data = []
+            self.valid_label = []
+            self.valid_id = []
+
+            self.test_data = []
+            self.test_label = []
+            self.test_id = []
 
             for situation, signal_name in enumerate(sorted(os.listdir(self.train_path))):
                 name, _, _ = scipy.io.whosmat(os.path.join(self.path, "train", signal_name))[0]
@@ -68,14 +75,28 @@ class FeatureExtractionDataset(Dataset):
                 label = label_file.loc[label_file['File Name'] == signal_name].values[0, 1:4].astype(float)
                 label = one_hot(label)
                 label = [label for i in range(len(sliding_signal))]
+
+                train_x, valid_x, train_y, valid_y = train_test_split(sliding_signal, label, train_size=0.7, random_state=0)
+                valid_x, test_x, valid_y, test_y = train_test_split(valid_x, valid_y, train_size=(2/3.), random_state=0)
                 
-                self.train_data += sliding_signal
-                self.train_label += label
-                self.train_id += [situation + 1 for i in range(len(sliding_signal))]
+
+
+                self.train_data += train_x
+                self.train_label += train_y
+                self.train_id += [situation + 1 for i in range(len(train_x))]
+
+                self.valid_data += valid_x
+                self.valid_label += valid_y
+                self.valid_id += [situation + 1 for i in range(len(valid_x))]
+
+                self.test_data += test_x
+                self.test_label += test_y
+                self.test_id += [situation + 1 for i in range(len(test_x))]
 
             self.train_index = np.array([i for i in range(len(self.train_data))])
             self.train_id = np.array(self.train_id)
-
+            self.valid_id = np.array(self.valid_id)
+            self.test_id = np.array(self.test_id)
             
 
         elif self.mode == "evaluate":
@@ -97,6 +118,10 @@ class FeatureExtractionDataset(Dataset):
     def __len__(self) -> int:
         if self.mode == "train":
             return len(self.train_data)
+        elif self.mode == "valid":
+            return len(self.valid_data)
+        elif self.mode == "test":
+            return len(self.test_data)
         elif self.mode == "evaluate":
             return len(self.evaluate_data)
         else:
@@ -132,11 +157,26 @@ class FeatureExtractionDataset(Dataset):
 
             return (anchor_signal, positive_signal, negative_signal), \
                 (anchor_label, positive_label, negative_label), anchor_state
-        else:
-            signal = self.evaluation_data[idx]
-            signal = torch.tensor(signal, dtype=torch.float32)
-            return signal
+        
+        elif self.mode == "valid":
+            anchor_signal = self.valid_data[idx]
+            anchor_state = self.valid_id[idx]
+            anchor_label = self.valid_label[idx]
 
+            anchor_signal = torch.tensor(anchor_signal, dtype=torch.float32)
+            anchor_label = torch.tensor(np.vstack(anchor_label), dtype=torch.float32)
+
+            return anchor_signal, anchor_label, anchor_state
+        
+        elif self.mode == "test":
+            anchor_signal = self.test_Data[idx]
+            anchor_state = self.test_id[idx]
+            anchor_label = self.test_label[idx]
+
+            anchor_signal = torch.tensor(anchor_signal, dtype=torch.float32)
+            anchor_label = torch.tensor(np.vstack(anchor_label), dtype=torch.float32)
+
+            return anchor_signal, anchor_label, anchor_state
 
             
             

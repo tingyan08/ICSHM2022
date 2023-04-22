@@ -19,7 +19,10 @@ def create_dataloader():
     train_dataset = FeatureExtractionDataset(path="./Data", mode="train")
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-    return train_dataloader
+    valid_dataset = FeatureExtractionDataset(path="./Data", mode="valid")
+    valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=False)
+
+    return train_dataloader, valid_dataloader
 
 
 
@@ -31,7 +34,7 @@ def main(args):
 
     print("Total number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-    train_dataloader = create_dataloader()
+    train_dataloader, valid_dataloader = create_dataloader()
     
     #TensorBoard
     save_dir = f"Logs/Extraction/Displacement-{args.trainer}"
@@ -49,9 +52,9 @@ def main(args):
     # Save top-3 val loss models
     checkpoint_best_callback = ModelCheckpoint(
         save_top_k=1,
-        monitor="train_loss", 
+        monitor="val_loss", 
         mode="min",
-        filename="{epoch:05d}-{train_loss:.8f}"
+        filename="{epoch:05d}-{val_loss:.8f}"
     )
 
 
@@ -67,7 +70,8 @@ def main(args):
 
 
     trainer.fit(model,
-                train_dataloaders=train_dataloader)
+                train_dataloaders=train_dataloader, 
+                val_dataloaders=valid_dataloader)
     
     
     # Save args
