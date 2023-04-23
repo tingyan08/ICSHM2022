@@ -553,7 +553,7 @@ class DamageAE(LightningModule):
         ce = nn.CrossEntropyLoss()
         for i in range(3):
             pred = damage_pred[:, i, :]
-            target = damage_target[:, i, :]
+            target = damage_target[:, i, 0]
             loss += ce(pred, target)
 
         return loss

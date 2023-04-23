@@ -21,18 +21,22 @@ from model.Displacement.extraction import AE, DamageAE, TripletAE
 from ..utils import DoubleConv, Down, Up, OutConv
 
 
+
 class Encoder(nn.Module):
     def __init__(self, bilinear = False):
         super(Encoder, self).__init__()
         self.input_conv = nn.Sequential(
-            nn.Conv1d(5, 64, 3, 1, 1),
+            nn.Conv1d(5, 16, 3, 1, 1),
         )
-        self.inc = (DoubleConv(64, 64))
-        self.down1 = (Down(64, 128))
-        self.down2 = (Down(128, 256))
-        self.down3 = (Down(256, 512))
-        factor = 2 if bilinear else 1
-        self.down4 = (Down(512, 1024 // factor) )
+        self.inc = (DoubleConv(16, 16))
+        self.down1 = (Down(16, 32))
+        self.down2 = (Down(32, 64))
+        self.down3 = (Down(64, 128))
+        self.down4 = (Down(128, 256) )
+        self.down5 = (Down(256, 512) )
+        self.down6 = (Down(512, 1024) )
+        self.linear = nn.Linear(16, 1)
+
 
     def forward(self, x):
         x = self.input_conv(x)
@@ -41,45 +45,39 @@ class Encoder(nn.Module):
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
-        return x1, x2, x3, x4, x5
+        x6 = self.down5(x5)
+        x7 = self.down6(x6)
+        x7 = self.linear(x7)
+        return x1, x2, x3, x4, x5, x6, x7
     
 class Decoder(nn.Module):
     def __init__(self, bilinear = False):
         super(Decoder, self).__init__()
+        self.linear = nn.Linear(1, 16)
         factor = 2 if bilinear else 1
-        self.down4 = (Down(512, 1024 // factor))
         self.up1 = (Up(1024, 512 // factor, bilinear))
         self.up2 = (Up(512, 256 // factor, bilinear))
         self.up3 = (Up(256, 128 // factor, bilinear))
         self.up4 = (Up(128, 64, bilinear))
-        self.outc = (OutConv(64, 64))
+        self.up5 = (Up(64, 32, bilinear))
+        self.up6 = (Up(32, 16, bilinear))
+        self.outc = (OutConv(16, 16))
         self.output_conv = nn.Sequential(
-            nn.Conv1d(64, 5, 3, 1, 1), 
+            nn.Conv1d(16, 5, 3, 1, 1), 
         )
 
-    def forward(self, x1, x2, x3, x4, x5):
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
+    def forward(self, latents):
+        x1, x2, x3, x4, x5, x6, x7 = latents
+        x7 = self.linear(x7)
+        x = self.up1(x7, x6)
+        x = self.up2(x, x5)
+        x = self.up3(x, x4)
+        x = self.up4(x, x3)
+        x = self.up5(x, x2)
+        x = self.up6(x, x1)
         x = self.outc(x)
         logits = self.output_conv(x)
-        return logits, x5
-    
-class Classifier(nn.Module):
-    def __init__(self):
-        super(Classifier, self).__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(1024, 512),
-            nn.ReLU(),
-            nn.Linear(512, 18)
-        )
-
-    def forward(self, x):
-        x = x.view(x.shape[0], -1)
-        x = self.fc(x)
-        x = x.view(x.shape[0], 3, 6)
-        return x
+        return logits
 
 class EncoderDecoder(LightningModule):
 
@@ -118,9 +116,9 @@ class EncoderDecoder(LightningModule):
 
 
     def forward(self, X):
-        latent = self.encoder(X)
-        reconstruct = self.decoder(latent)
-        return latent, reconstruct
+        latents = self.encoder(X)
+        reconstruct = self.decoder(latents)
+        return reconstruct
 
     
     def reconstruction_loss(self, 
@@ -143,8 +141,8 @@ class EncoderDecoder(LightningModule):
 
     def training_step(self, batch, batch_idx):
         masked_signal, target_signal = batch
-        representation = self.encoder(masked_signal)
-        prediction = self.decoder(representation)
+        latents = self.encoder(masked_signal)
+        prediction = self.decoder(latents)
 
         mse = nn.MSELoss()
         mse_loss  = mse(prediction, target_signal)
@@ -155,8 +153,8 @@ class EncoderDecoder(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         masked_signal, target_signal = batch
-        representation = self.encoder(masked_signal)
-        prediction = self.decoder(representation)
+        latents = self.encoder(masked_signal)
+        prediction = self.decoder(latents)
 
         mse = nn.MSELoss()
         mse_loss  = mse(prediction, target_signal)

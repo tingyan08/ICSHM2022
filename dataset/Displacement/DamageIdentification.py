@@ -70,7 +70,7 @@ class DamageIdentificationDataset(Dataset):
 
                 sliding_signal = sliding_window(x, window=1024, stride=1024)
                 label = label_file.loc[label_file['File Name'] == signal_name].values[0, 1:4].astype(float)
-                label = one_hot(label)
+                label = (label * 10).astype(np.uint64)
                 label = [label for i in range(len(sliding_signal))]
 
                 train_x, valid_x, train_y, valid_y = train_test_split(sliding_signal, label, train_size=0.7, random_state=0)
@@ -121,9 +121,9 @@ class DamageIdentificationDataset(Dataset):
             input = torch.tensor(self.train_data[idx], dtype=torch.float32)
             signal_id = torch.tensor(self.train_id[idx], dtype=torch.float32)
 
-            label1 = torch.tensor(self.train_label[idx][0], dtype=torch.float32)
-            label2 = torch.tensor(self.train_label[idx][1], dtype=torch.float32)
-            label3 = torch.tensor(self.train_label[idx][2], dtype=torch.float32)
+            label1 = torch.tensor(self.train_label[idx][0], dtype=torch.long)
+            label2 = torch.tensor(self.train_label[idx][1], dtype=torch.long)
+            label3 = torch.tensor(self.train_label[idx][2], dtype=torch.long)
             return input, label1, label2, label3, signal_id
 
             
@@ -132,18 +132,18 @@ class DamageIdentificationDataset(Dataset):
             input = torch.tensor(self.valid_data[idx], dtype=torch.float32)
             signal_id = torch.tensor(self.valid_id[idx], dtype=torch.float32)
 
-            label1 = torch.tensor(self.valid_label[idx][0], dtype=torch.float32)
-            label2 = torch.tensor(self.valid_label[idx][1], dtype=torch.float32)
-            label3 = torch.tensor(self.valid_label[idx][2], dtype=torch.float32)
+            label1 = torch.tensor(self.valid_label[idx][0], dtype=torch.long)
+            label2 = torch.tensor(self.valid_label[idx][1], dtype=torch.long)
+            label3 = torch.tensor(self.valid_label[idx][2], dtype=torch.long)
             return input, label1, label2, label3, signal_id
         
         elif self.mode == "test":
             input = torch.tensor(self.test_data[idx], dtype=torch.float32)
             signal_id = torch.tensor(self.test_id[idx], dtype=torch.float32)
 
-            label1 = torch.tensor(self.test_label[idx][0], dtype=torch.float32)
-            label2 = torch.tensor(self.test_label[idx][1], dtype=torch.float32)
-            label3 = torch.tensor(self.test_label[idx][2], dtype=torch.float32)
+            label1 = torch.tensor(self.test_label[idx][0], dtype=torch.long)
+            label2 = torch.tensor(self.test_label[idx][1], dtype=torch.long)
+            label3 = torch.tensor(self.test_label[idx][2], dtype=torch.long)
             return input, label1, label2, label3, signal_id
 
         else:
@@ -153,8 +153,7 @@ class DamageIdentificationDataset(Dataset):
 
 
 if __name__ == "__main__":
-    source = "Displacement"
-    dataset = DamageIdentificationDataset(path=f"./Data/{source}", mode="evaluate")
+    dataset = DamageIdentificationDataset(path=f"./Data/", mode="train")
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
     for i in dataloader:
         print(i[1].shape)
