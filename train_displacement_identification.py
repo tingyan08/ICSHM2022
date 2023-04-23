@@ -14,12 +14,12 @@ from torch.utils.data import DataLoader
 from dataset.Displacement.DamageIdentification import DamageIdentificationDataset
 
 
-def create_dataloader():
+def create_dataloader(args):
     num_workers = min(os.cpu_count(), 4)
-    train_dataset = DamageIdentificationDataset(path="./Data", mode="train")
+    train_dataset = DamageIdentificationDataset(path="./Data", mode="train", classification=True if args.trainer == "classification" else False)
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-    valid_dataset = DamageIdentificationDataset(path="./Data", mode="valid")
+    valid_dataset = DamageIdentificationDataset(path="./Data", mode="valid", classification=True if args.trainer == "classification" else False)
     valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=False)
 
     return train_dataloader, valid_dataloader
@@ -36,10 +36,10 @@ def main(args):
 
     task = args.arch.split("_")[-1]
 
-    train_dataloader, valid_dataloader = create_dataloader()
+    train_dataloader, valid_dataloader = create_dataloader(args)
     
     #TensorBoard
-    save_dir = f"Logs/Identification/Displacement-{args.trainer}"
+    save_dir = f"Logs/Identification/Displacement-{args.arch}"
 
     name = f"{args.description}/"
 
@@ -51,14 +51,23 @@ def main(args):
         default_hp_metric = True)
     
     
-    # Save top-3 val loss models
-    checkpoint_best_callback = ModelCheckpoint(
-        save_top_k=1,
-        monitor="val_acc", 
-        mode="max",
-        filename="{epoch:05d}-{val_acc:.4f}"
-    )
+    if args.trainer == "classification":
+        # Save top-3 val loss models
+        checkpoint_best_callback = ModelCheckpoint(
+            save_top_k=1,
+            monitor="val_acc", 
+            mode="max",
+            filename="{epoch:05d}-{val_acc:.4f}"
+        )
 
+    else:
+        # Save top-3 val loss models
+        checkpoint_best_callback = ModelCheckpoint(
+            save_top_k=1,
+            monitor="val_loss", 
+            mode="min",
+            filename="{epoch:05d}-{val_loss:.4f}"
+        )
 
 
 
@@ -89,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
-    parser.add_argument('--arch', type=str,  default="classification", help = 'The file where trainer located')
+    parser.add_argument('--arch', type=str,  default="regression", help = 'The file where trainer located')
     parser.add_argument('--trainer', type=str,  default="CNN", help = 'The trainer we used')
 
     parser.add_argument('--load_model', type=str,  default="None", help = 'Model to load')

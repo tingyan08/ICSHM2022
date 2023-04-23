@@ -40,10 +40,8 @@ def one_hot(label):
 
 
 class FeatureExtractionDataset(Dataset):
-    def __init__(self, path, mode="train", triplet=False, Damage=False) -> None:
+    def __init__(self, path, mode="train", classification=False) -> None:
         self.path = os.path.join(path, "Displacement")
-        self.triplet = triplet
-        self.Damage = Damage
         self.train_path = os.path.join(self.path, "train")
         self.test_path = os.path.join(self.path, "test")
         self.mode = mode
@@ -74,7 +72,8 @@ class FeatureExtractionDataset(Dataset):
 
                 sliding_signal = sliding_window(x, window=1024, stride=1024)
                 label = label_file.loc[label_file['File Name'] == signal_name].values[0, 1:4].astype(float)
-                label = (label * 10).astype(np.int64)
+                if classification:
+                    label = (label * 10).astype(np.int64)
                 label = [label for i in range(len(sliding_signal))]
 
                 train_x, valid_x, train_y, valid_y = train_test_split(sliding_signal, label, train_size=0.7, random_state=0)
@@ -150,9 +149,9 @@ class FeatureExtractionDataset(Dataset):
             positive_signal = torch.tensor(positive_signal, dtype=torch.float32)
             negative_signal = torch.tensor(negative_signal, dtype=torch.float32)
 
-            anchor_label = torch.tensor(np.vstack(anchor_label), dtype=torch.long)
-            positive_label = torch.tensor(np.vstack(positive_label), dtype=torch.long)
-            negative_label = torch.tensor(np.vstack(negative_label), dtype=torch.long)
+            anchor_label = torch.tensor(anchor_label, dtype=torch.float32)
+            positive_label = torch.tensor(positive_label, dtype=torch.float32)
+            negative_label = torch.tensor(negative_label, dtype=torch.float32)
 
 
 
@@ -165,7 +164,7 @@ class FeatureExtractionDataset(Dataset):
             anchor_label = self.valid_label[idx]
 
             anchor_signal = torch.tensor(anchor_signal, dtype=torch.float32)
-            anchor_label = torch.tensor(np.vstack(anchor_label), dtype=torch.long)
+            anchor_label = torch.tensor(anchor_label, dtype=torch.float32)
 
             return anchor_signal, anchor_label, anchor_state
         
@@ -175,7 +174,7 @@ class FeatureExtractionDataset(Dataset):
             anchor_label = self.test_label[idx]
 
             anchor_signal = torch.tensor(anchor_signal, dtype=torch.float32)
-            anchor_label = torch.tensor(np.vstack(anchor_label), dtype=torch.long)
+            anchor_label = torch.tensor(anchor_label, dtype=torch.float32)
 
             return anchor_signal, anchor_label, anchor_state
 

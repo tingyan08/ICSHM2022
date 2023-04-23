@@ -87,13 +87,13 @@ class Classifier(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(1024, 512),
             nn.ReLU(),
-            nn.Linear(512, 18)
+            nn.Linear(512, 3)
         )
 
     def forward(self, x):
         x = x.view(x.shape[0], -1)
         x = self.fc(x)
-        return x[:, :6], x[:, 6:12], x[:, 12:18]
+        return x
     
 
 class AE(LightningModule):
@@ -584,11 +584,8 @@ class DamageAE(LightningModule):
         negative_representation = negative_latents[-1]
 
         anchor_pred = self.classifier(anchor_representation)
-        anchor_pred = torch.concatenate([i.unsqueeze(1) for i in anchor_pred], axis=1)
         positive_pred = self.classifier(positive_representation)
-        positive_pred = torch.concatenate([i.unsqueeze(1) for i in positive_pred], axis=1)
         negative_pred = self.classifier(negative_representation)
-        negative_pred = torch.concatenate([i.unsqueeze(1) for i in negative_pred], axis=1)
 
 
         mse_loss  = self.reconstruction_loss(
@@ -596,14 +593,17 @@ class DamageAE(LightningModule):
             anchor_reconstruct, positive_reconstruct, negative_reconstruct
         )
 
-        ce_loss = self.classification_loss(
-            [anchor_pred, positive_pred, negative_pred], [anchor_target, positive_target, negative_target])
+        mse = nn.MSELoss()
+        mse_anchor = mse(anchor_target, anchor_pred)
+        mse_positive = mse(positive_target, positive_pred)
+        mse_negative = mse(negative_target, negative_pred)
+        pred_loss = mse_anchor + mse_positive + mse_negative
 
 
-        loss = mse_loss + 0.5 * ce_loss
+        loss = mse_loss + pred_loss
 
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
-        return {"loss": loss, "mse_loss": mse_loss, "ce_loss":ce_loss, \
+        return {"loss": loss, "mse_loss": mse_loss, "pred_loss":pred_loss, \
                 "anchor_representation":torch.permute(anchor_representation, (0, 2, 1)), "anchor_state":anchor_state, \
                 "anchor_reconstruct": anchor_reconstruct, "anchor_signal":anchor_signal,\
                     "anchor_label": anchor_target, "anchor_pred":anchor_pred}
@@ -614,18 +614,17 @@ class DamageAE(LightningModule):
         anchor_reconstruct = self.decoder(latents)
         anchor_representation = latents[-1]
         anchor_pred = self.classifier(anchor_representation)
-        anchor_pred = torch.concatenate([i.unsqueeze(1) for i in anchor_pred], axis=1)
 
         mse = nn.MSELoss()
         mse_loss  = mse(anchor_signal, anchor_reconstruct)
 
-        ce_loss = self.sensor_ce_loss(anchor_pred, anchor_label)
+        pred_loss = mse(anchor_label, anchor_pred)
 
-        loss = mse_loss + ce_loss
+        loss = mse_loss + pred_loss
 
         self.log("val_loss", loss)
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
-        return {"loss": loss, "mse_loss": mse_loss, "ce_loss":ce_loss, \
+        return {"loss": loss, "mse_loss": mse_loss, "pred_loss":pred_loss, \
                 "anchor_representation":torch.permute(anchor_representation, (0, 2, 1)), "anchor_state":anchor_state, \
                 "anchor_reconstruct": anchor_reconstruct, "anchor_signal":anchor_signal,\
                 "anchor_label": anchor_label, "anchor_pred":anchor_pred}
@@ -640,7 +639,7 @@ class DamageAE(LightningModule):
     
     def training_epoch_end(self, training_step_outputs):
         loss = []
-        ce_loss = []
+        pred_loss = []
         mse_loss = []
 
         anchor_representation = []
@@ -654,7 +653,7 @@ class DamageAE(LightningModule):
 
         for step_result in training_step_outputs:
             loss.append(step_result["loss"].cpu().detach().numpy())
-            ce_loss.append(step_result["ce_loss"].cpu().detach().numpy())
+            pred_loss.append(step_result["pred_loss"].cpu().detach().numpy())
             mse_loss.append(step_result["mse_loss"].cpu().detach().numpy())
 
             anchor_representation.append(step_result["anchor_representation"].cpu().detach().numpy())
@@ -667,11 +666,11 @@ class DamageAE(LightningModule):
             anchor_pred.append(step_result["anchor_pred"].cpu().detach().numpy())
       
         loss = np.concatenate([loss], axis=0)
-        ce_loss = np.concatenate([ce_loss], axis=0)
+        pred_loss = np.concatenate([pred_loss], axis=0)
         mse_loss = np.concatenate([mse_loss], axis=0)
 
         self.logger.experiment.add_scalar(f'Train/Loss/Loss', loss.mean(), self.current_epoch)
-        self.logger.experiment.add_scalar(f'Train/Loss/CE Loss', ce_loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Train/Loss/Prediction Loss', pred_loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
         anchor_representation = np.concatenate(anchor_representation, axis=0)
@@ -692,12 +691,12 @@ class DamageAE(LightningModule):
 
         anchor_label = np.concatenate(anchor_label, axis=0)
         anchor_pred = np.concatenate(anchor_pred, axis=0)
-        self.display_prediction(anchor_label, anchor_pred)
+        self.display_prediction(anchor_label, anchor_pred, "Train")
 
 
     def validation_epoch_end(self, validation_step_outputs):
         loss = []
-        ce_loss = []
+        pred_loss = []
         mse_loss = []
 
         anchor_representation = []
@@ -711,7 +710,7 @@ class DamageAE(LightningModule):
 
         for step_result in validation_step_outputs:
             loss.append(step_result["loss"].cpu().numpy())
-            ce_loss.append(step_result["ce_loss"].cpu().numpy())
+            pred_loss.append(step_result["pred_loss"].cpu().numpy())
             mse_loss.append(step_result["mse_loss"].cpu().numpy())
 
             anchor_representation.append(step_result["anchor_representation"].cpu().numpy())
@@ -724,11 +723,11 @@ class DamageAE(LightningModule):
             anchor_pred.append(step_result["anchor_pred"].cpu().numpy())
       
         loss = np.concatenate([loss], axis=0)
-        ce_loss = np.concatenate([ce_loss], axis=0)
+        pred_loss = np.concatenate([pred_loss], axis=0)
         mse_loss = np.concatenate([mse_loss], axis=0)
 
         self.logger.experiment.add_scalar(f'Validation/Loss/Loss', loss.mean(), self.current_epoch)
-        self.logger.experiment.add_scalar(f'Validation/Loss/CE Loss', ce_loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Validation/Loss/Prediction Loss', pred_loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Validation/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
         anchor_representation = np.concatenate(anchor_representation, axis=0)
@@ -749,7 +748,7 @@ class DamageAE(LightningModule):
 
         anchor_label = np.concatenate(anchor_label, axis=0)
         anchor_pred = np.concatenate(anchor_pred, axis=0)
-        self.display_prediction(anchor_label, anchor_pred)
+        self.display_prediction(anchor_label, anchor_pred, "Validation")
 
     
     
@@ -787,23 +786,16 @@ class DamageAE(LightningModule):
 
         return output_signal, output_reconstruct
     
-    def display_prediction(self, target, prediction):
-        prediction1 = np.argmax(softmax(prediction[:, 0, :], axis=1), axis=1)
-        prediction2 = np.argmax(softmax(prediction[:, 1, :], axis=1), axis=1)
-        prediction3 = np.argmax(softmax(prediction[:, 2, :], axis=1), axis=1)
-
-        target1 = np.argmax(softmax(target[:, 0, :], axis=1), axis=1)
-        target2 = np.argmax(softmax(target[:, 1, :], axis=1), axis=1)
-        target3 = np.argmax(softmax(target[:, 2, :], axis=1), axis=1)
+    def display_prediction(self, target, prediction, mode):
 
         df = pd.DataFrame({
-            "No.7 Prediction (%)": prediction1*10, 
-            "No.7 Target (%)": target1*10, 
-            "No.22 Prediction (%)": prediction2*10, 
-            "No.22 Target (%)": target2*10, 
-            "No.38 Prediction (%)": prediction3*10, 
-            "No.38 Target (%)": target3*10, 
+            "No.7 Prediction (%)": prediction[:, 0]*100, 
+            "No.7 Target (%)": target[:, 0]*100, 
+            "No.22 Prediction (%)": prediction[:, 1]*100, 
+            "No.22 Target (%)": target[:, 1]*100, 
+            "No.38 Prediction (%)": prediction[:, 2]*100, 
+            "No.38 Target (%)": target[:, 2]*100, 
         })
   
-        df.to_csv(os.path.join(self.trainer.log_dir, "pred.csv"), index=False)
+        df.to_csv(os.path.join(self.trainer.log_dir, f"mode.csv"), index=False)
    
