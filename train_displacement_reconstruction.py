@@ -37,7 +37,7 @@ def main(args):
     train_dataloader, valid_dataloader = create_dataloader()
     
     #TensorBoard
-    save_dir = f"Logs/Reconstruction/Displacement_{args.trainer}"
+    save_dir = f"Logs/Reconstruction/Displacement-{args.trainer}"
 
     name = f"{args.description}"
 

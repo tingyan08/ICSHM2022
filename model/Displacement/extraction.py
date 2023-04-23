@@ -19,73 +19,67 @@ from sklearn.manifold import TSNE
 
 from scipy.special import softmax
 
+from ..utils import DoubleConv, Down, Up, OutConv
+
 
 
 class Encoder(nn.Module):
-    def __init__(self, length=1024, latent_dim=512):
+    def __init__(self, bilinear = False):
         super(Encoder, self).__init__()
-
-        self.encoder = nn.Sequential(
+        self.input_conv = nn.Sequential(
             nn.Conv1d(5, 16, 3, 1, 1),
-            nn.BatchNorm1d(16),
-            nn.ReLU(),
-            nn.Conv1d(16, 32, 4, 2, 1),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.Conv1d(32, 64, 4, 2, 1),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Conv1d(64, 128, 4, 2, 1),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Conv1d(128, 256, 4, 2, 1),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Conv1d(256, 512, 4, 2, 1),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Conv1d(512, 1024, 32, 1, 0),
         )
-    
-        
+        self.inc = (DoubleConv(16, 16))
+        self.down1 = (Down(16, 32))
+        self.down2 = (Down(32, 64))
+        self.down3 = (Down(64, 128))
+        self.down4 = (Down(128, 256) )
+        self.down5 = (Down(256, 512) )
+        self.down6 = (Down(512, 1024) )
+        self.linear = nn.Linear(16, 1)
+
 
     def forward(self, x):
-        x = self.encoder(x)
-        return x
+        x = self.input_conv(x)
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        x6 = self.down5(x5)
+        x7 = self.down6(x6)
+        x7 = self.linear(x7)
+        return x1, x2, x3, x4, x5, x6, x7
     
 class Decoder(nn.Module):
-    def __init__(self):
+    def __init__(self, bilinear = False):
         super(Decoder, self).__init__()
-
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose1d(1024, 512, 32, 1, 0),
-            nn.BatchNorm1d(512),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(512, 256, 4, 2, 1),
-            nn.BatchNorm1d(256),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(256, 128, 4, 2, 1),
-            nn.BatchNorm1d(128),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(128, 64, 4, 2, 1),
-            nn.BatchNorm1d(64),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(64, 32, 4, 2, 1),
-            nn.BatchNorm1d(32),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(32, 16, 4, 2, 1),
-            nn.BatchNorm1d(16),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(16, 5, 3, 1, 1),
-            nn.Sigmoid()
+        self.linear = nn.Linear(1, 16)
+        factor = 2 if bilinear else 1
+        self.up1 = (Up(1024, 512 // factor, bilinear))
+        self.up2 = (Up(512, 256 // factor, bilinear))
+        self.up3 = (Up(256, 128 // factor, bilinear))
+        self.up4 = (Up(128, 64, bilinear))
+        self.up5 = (Up(64, 32, bilinear))
+        self.up6 = (Up(32, 16, bilinear))
+        self.outc = (OutConv(16, 16))
+        self.output_conv = nn.Sequential(
+            nn.Conv1d(16, 5, 3, 1, 1), 
         )
 
+    def forward(self, latents):
+        x1, x2, x3, x4, x5, x6, x7 = latents
+        x7 = self.linear(x7)
+        x = self.up1(x7, x6)
+        x = self.up2(x, x5)
+        x = self.up3(x, x4)
+        x = self.up4(x, x3)
+        x = self.up5(x, x2)
+        x = self.up6(x, x1)
+        x = self.outc(x)
+        logits = self.output_conv(x)
+        return logits
     
-        
-
-    def forward(self, x):
-        x = self.decoder(x)
-        return x
     
 class Classifier(nn.Module):
     def __init__(self):
@@ -99,20 +93,8 @@ class Classifier(nn.Module):
     def forward(self, x):
         x = x.view(x.shape[0], -1)
         x = self.fc(x)
-        x = x.view(x.shape[0], 3, 6)
-        return x
+        return x[:, :6], x[:, 6:12], x[:, 12:18]
     
-def initialize_weights(net):
-    for m in net.modules():
-        if isinstance(m, nn.Conv2d):
-            m.weight.data.normal_(0, 0.02)
-            m.bias.data.zero_()
-        elif isinstance(m, nn.ConvTranspose2d):
-            m.weight.data.normal_(0, 0.02)
-            m.bias.data.zero_()
-        elif isinstance(m, nn.Linear):
-            m.weight.data.normal_(0, 0.02)
-            m.bias.data.zero_()
 
 class AE(LightningModule):
 
@@ -121,15 +103,13 @@ class AE(LightningModule):
         self.save_hyperparameters()
 
         self.encoder = Encoder()
-        initialize_weights(self.encoder)
         self.decoder = Decoder()
-        initialize_weights(self.decoder)
 
 
     def forward(self, X):
-        latent = self.encoder(X)
-        reconstruct = self.decoder(latent)
-        return latent, reconstruct
+        latents = self.encoder(X)
+        reconstruct = self.decoder(latents)
+        return reconstruct, latents[-1]
 
     
     def reconstruction_loss(self, 
@@ -154,9 +134,9 @@ class AE(LightningModule):
         anchor_signal, _, _ = signal_list[0], signal_list[1], signal_list[2]
 
 
-        anchor_representation = self.encoder(anchor_signal)
-
-        anchor_reconstruct = self.decoder(anchor_representation)
+        latents = self.encoder(anchor_signal)
+        anchor_representation = latents[-1]
+        anchor_reconstruct = self.decoder(latents)
 
         mse_loss  = self.loss_func(anchor_signal,anchor_reconstruct)
 
@@ -172,11 +152,11 @@ class AE(LightningModule):
     def validation_step(self, batch, batch_idx):
         anchor_signal, _, anchor_state = batch
 
-        anchor_representation = self.encoder(anchor_signal)
+        latents = self.encoder(anchor_signal)
+        anchor_representation = latents[-1]
+        anchor_reconstruct = self.decoder(latents)
 
-        anchor_reconstruct = self.decoder(anchor_representation)
-
-        mse_loss  = self.loss_func(anchor_signal,anchor_reconstruct)
+        mse_loss  = self.loss_func(anchor_signal, anchor_reconstruct)
 
         loss =  mse_loss
 
@@ -319,16 +299,14 @@ class TripletAE(LightningModule):
         self.save_hyperparameters()
 
         self.encoder = Encoder()
-        initialize_weights(self.encoder)
         self.decoder = Decoder()
-        initialize_weights(self.decoder)
 
 
 
     def forward(self, X):
-        latent = self.encoder(X)
-        reconstruct = self.decoder(latent)
-        return latent, reconstruct
+        latents = self.encoder(X)
+        reconstruct = self.decoder(latents)
+        return reconstruct, latents[-1]
 
 
     
@@ -365,13 +343,17 @@ class TripletAE(LightningModule):
         anchor_signal, positive_signal, negative_signal = signal_list[0], signal_list[1], signal_list[2]
 
 
-        anchor_representation = self.encoder(anchor_signal)
-        positive_representation = self.encoder(positive_signal)
-        negative_representation = self.encoder(negative_signal)
+        anchor_latents = self.encoder(anchor_signal)
+        positive_latents = self.encoder(positive_signal)
+        negative_latents = self.encoder(negative_signal)
 
-        anchor_reconstruct = self.decoder(anchor_representation)
-        positive_reconstruct = self.decoder(positive_representation)
-        negative_reconstruct = self.decoder(negative_representation)
+        anchor_reconstruct = self.decoder(anchor_latents)
+        positive_reconstruct = self.decoder(positive_latents)
+        negative_reconstruct = self.decoder(negative_latents)
+
+        anchor_representation = anchor_latents[-1]
+        positive_representation = positive_latents[-1]
+        negative_representation = negative_latents[-1]
 
         triplet_loss, mse_loss  = self.loss_func(
             anchor_representation, positive_representation, negative_representation,
@@ -392,8 +374,9 @@ class TripletAE(LightningModule):
         anchor_signal, _, anchor_state = batch
 
 
-        anchor_representation = self.encoder(anchor_signal)
-        anchor_reconstruct = self.decoder(anchor_representation)
+        latents = self.encoder(anchor_signal)
+        anchor_reconstruct = self.decoder(latents)
+        anchor_representation = latents[-1]
 
         mse = nn.MSELoss()
         mse_loss  = mse(anchor_signal, anchor_reconstruct)
@@ -545,19 +528,16 @@ class DamageAE(LightningModule):
         self.save_hyperparameters()
 
         self.encoder = Encoder()
-        initialize_weights(self.encoder)
         self.decoder = Decoder()
-        initialize_weights(self.decoder)
         self.classifier = Classifier()
-        initialize_weights(self.classifier)
 
 
 
     def forward(self, X):
-        latent = self.encoder(X)
-        reconstruct = self.decoder(latent)
-        pred = self.classifier(latent)
-        return latent, pred, reconstruct
+        latents = self.encoder(X)
+        reconstruct = self.decoder(latents)
+        pred = self.classifier(latents[-1])
+        return reconstruct, latents[-1], pred
 
     def reconstruction_loss(self, 
                            anchor_signal, positive_signal, negative_signal,
@@ -591,17 +571,24 @@ class DamageAE(LightningModule):
         anchor_target, positive_target, negative_target = target_list[0], target_list[1], target_list[2]
 
 
-        anchor_representation = self.encoder(anchor_signal)
-        positive_representation = self.encoder(positive_signal)
-        negative_representation = self.encoder(negative_signal)
+        anchor_latents = self.encoder(anchor_signal)
+        positive_latents = self.encoder(positive_signal)
+        negative_latents = self.encoder(negative_signal)
 
-        anchor_reconstruct = self.decoder(anchor_representation)
-        positive_reconstruct = self.decoder(positive_representation)
-        negative_reconstruct = self.decoder(negative_representation)
+        anchor_reconstruct = self.decoder(anchor_latents)
+        positive_reconstruct = self.decoder(positive_latents)
+        negative_reconstruct = self.decoder(negative_latents)
+
+        anchor_representation = anchor_latents[-1]
+        positive_representation = positive_latents[-1]
+        negative_representation = negative_latents[-1]
 
         anchor_pred = self.classifier(anchor_representation)
+        anchor_pred = torch.concatenate([i.unsqueeze(1) for i in anchor_pred], axis=1)
         positive_pred = self.classifier(positive_representation)
+        positive_pred = torch.concatenate([i.unsqueeze(1) for i in positive_pred], axis=1)
         negative_pred = self.classifier(negative_representation)
+        negative_pred = torch.concatenate([i.unsqueeze(1) for i in negative_pred], axis=1)
 
 
         mse_loss  = self.reconstruction_loss(
@@ -615,18 +602,19 @@ class DamageAE(LightningModule):
 
         loss = mse_loss + 0.5 * ce_loss
 
-
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
         return {"loss": loss, "mse_loss": mse_loss, "ce_loss":ce_loss, \
                 "anchor_representation":torch.permute(anchor_representation, (0, 2, 1)), "anchor_state":anchor_state, \
                 "anchor_reconstruct": anchor_reconstruct, "anchor_signal":anchor_signal,\
-                "anchor_label": anchor_target, "anchor_pred":anchor_pred}
+                    "anchor_label": anchor_target, "anchor_pred":anchor_pred}
     
     def validation_step(self, batch, batch_idx):
         anchor_signal, anchor_label, anchor_state = batch
-        anchor_representation = self.encoder(anchor_signal)
-        anchor_reconstruct = self.decoder(anchor_representation)
+        latents = self.encoder(anchor_signal)
+        anchor_reconstruct = self.decoder(latents)
+        anchor_representation = latents[-1]
         anchor_pred = self.classifier(anchor_representation)
+        anchor_pred = torch.concatenate([i.unsqueeze(1) for i in anchor_pred], axis=1)
 
         mse = nn.MSELoss()
         mse_loss  = mse(anchor_signal, anchor_reconstruct)

@@ -20,89 +20,66 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
 from scipy.special import softmax
+from ..utils import DoubleConv, Down, Up, OutConv
 
 
 
 class Encoder(nn.Module):
-    def __init__(self, length=1024, latent_dim=512):
+    def __init__(self, bilinear = False):
         super(Encoder, self).__init__()
-
-        self.encoder = nn.Sequential(
+        self.input_conv = nn.Sequential(
             nn.Conv1d(5, 16, 3, 1, 1),
-            nn.BatchNorm1d(16),
-            nn.ReLU(),
-            nn.Conv1d(16, 32, 4, 2, 1),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.Conv1d(32, 64, 4, 2, 1),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Conv1d(64, 128, 4, 2, 1),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Conv1d(128, 256, 4, 2, 1),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Conv1d(256, 512, 4, 2, 1),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Conv1d(512, 1024, 32, 1, 0),
         )
-    
-        
+        self.inc = (DoubleConv(16, 16))
+        self.down1 = (Down(16, 32))
+        self.down2 = (Down(32, 64))
+        self.down3 = (Down(64, 128))
+        self.down4 = (Down(128, 256) )
+        self.down5 = (Down(256, 512) )
+        self.down6 = (Down(512, 1024) )
+        self.linear = nn.Linear(16, 1)
+
 
     def forward(self, x):
-        x = self.encoder(x)
-        return x
+        x = self.input_conv(x)
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        x6 = self.down5(x5)
+        x7 = self.down6(x6)
+        x7 = self.linear(x7)
+        return x1, x2, x3, x4, x5, x6, x7
     
 class Decoder(nn.Module):
-    def __init__(self):
+    def __init__(self, bilinear = False):
         super(Decoder, self).__init__()
-
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose1d(1024, 512, 32, 1, 0),
-            nn.BatchNorm1d(512),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(512, 256, 4, 2, 1),
-            nn.BatchNorm1d(256),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(256, 128, 4, 2, 1),
-            nn.BatchNorm1d(128),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(128, 64, 4, 2, 1),
-            nn.BatchNorm1d(64),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(64, 32, 4, 2, 1),
-            nn.BatchNorm1d(32),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(32, 16, 4, 2, 1),
-            nn.BatchNorm1d(16),
-            nn.LeakyReLU(),
-            nn.ConvTranspose1d(16, 5, 3, 1, 1),
-            nn.Sigmoid()
+        self.linear = nn.Linear(1, 16)
+        factor = 2 if bilinear else 1
+        self.up1 = (Up(1024, 512 // factor, bilinear))
+        self.up2 = (Up(512, 256 // factor, bilinear))
+        self.up3 = (Up(256, 128 // factor, bilinear))
+        self.up4 = (Up(128, 64, bilinear))
+        self.up5 = (Up(64, 32, bilinear))
+        self.up6 = (Up(32, 16, bilinear))
+        self.outc = (OutConv(16, 16))
+        self.output_conv = nn.Sequential(
+            nn.Conv1d(16, 5, 3, 1, 1), 
         )
 
-    
-        
-
-    def forward(self, x):
-        x = self.decoder(x)
-        return x
-    
-class Classifier(nn.Module):
-    def __init__(self):
-        super(Classifier, self).__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(1024, 512),
-            nn.ReLU(),
-            nn.Linear(512, 18)
-        )
-
-    def forward(self, x):
-        x = x.view(x.shape[0], -1)
-        x = self.fc(x)
-        x = x.view(x.shape[0], 3, 6)
-        return x
+    def forward(self, latents):
+        x1, x2, x3, x4, x5, x6, x7 = latents
+        x7 = self.linear(x7)
+        x = self.up1(x7, x6)
+        x = self.up2(x, x5)
+        x = self.up3(x, x4)
+        x = self.up4(x, x3)
+        x = self.up5(x, x2)
+        x = self.up6(x, x1)
+        x = self.outc(x)
+        logits = self.output_conv(x)
+        return logits
 
 class AE(LightningModule):
 
@@ -146,8 +123,21 @@ class AE(LightningModule):
         mse = nn.MSELoss()
         mse_loss  = mse(signal, reconstructed_signal)
         loss =  mse_loss
+        
+        self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
+        return {"loss": loss, "mse_loss": mse_loss, \
+                "anchor_reconstruct": reconstructed_signal, "anchor_signal":signal}
+    
+    def validation_step(self, batch, batch_idx):
+        signal = batch
+        representation = self.encoder(signal)
+        reconstructed_signal = self.decoder(representation)
 
-        self.log("train_loss", loss)
+        mse = nn.MSELoss()
+        mse_loss  = mse(signal, reconstructed_signal)
+        loss =  mse_loss
+
+        self.log("val_loss", loss)
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
         return {"loss": loss, "mse_loss": mse_loss, \
@@ -193,20 +183,52 @@ class AE(LightningModule):
         min_max = self.trainer.train_dataloader.dataset.datasets.min_max
         anchor_signal, anchor_reconstruct = self.denormalize(anchor_signal, anchor_reconstruct, min_max)
 
-        self.visualize(anchor_signal[-1], anchor_reconstruct[-1])
+        self.visualize(anchor_signal[-1], anchor_reconstruct[-1], "Train")
+
+    def validation_epoch_end(self, validation_step_outputs):
+        loss = []
+        mse_loss = []
+
+        anchor_reconstruct = []
+        anchor_signal = []
+
+        for step_result in validation_step_outputs:
+            loss.append(step_result["loss"].cpu().detach().numpy())
+            mse_loss.append(step_result["mse_loss"].cpu().detach().numpy())
+
+
+            anchor_reconstruct.append(step_result["anchor_reconstruct"].cpu().detach().numpy())
+            anchor_signal.append(step_result["anchor_signal"].cpu().detach().numpy())
+
+
+            
+        loss = np.concatenate([loss], axis=0)
+        mse_loss = np.concatenate([mse_loss], axis=0)
+
+        self.logger.experiment.add_scalar(f'Validation/Loss/Loss', loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Validation/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
+
+    
+        anchor_reconstruct = np.concatenate(anchor_reconstruct, axis=0)
+        anchor_signal = np.concatenate(anchor_signal, axis=0)
+
+        min_max = self.trainer.val_dataloaders[0].dataset.min_max
+        anchor_signal, anchor_reconstruct = self.denormalize(anchor_signal, anchor_reconstruct, min_max)
+
+        self.visualize(anchor_signal[-1], anchor_reconstruct[-1], "Validation")
 
     
     
 
 
-    def visualize(self, signal, reonstructed_signal):
+    def visualize(self, signal, reonstructed_signal, mode):
         fig, axes = plt.subplots(5, 1, figsize=(15,6))
         for i in range(5):
             line1 = axes[i].plot(range(len(signal[i, :])), signal[i, :], color="tab:blue",  label="Real Signal")
             line2 = axes[i].plot(range(len(reonstructed_signal[i, :])), reonstructed_signal[i, :], color="tab:red", linestyle='dashed', label="Reconstructed Signal")
             axes[i].set_xticks([])
         fig.legend(handles =[line1[0], line2[0]], loc ='lower center', ncol=4)
-        self.logger.experiment.add_figure(f'Train/Visualize', fig , self.current_epoch)
+        self.logger.experiment.add_figure(f'{mode}/Visualize', fig , self.current_epoch)
 
     def denormalize(self, signal, reonstructed_signal, min_max):
         n = signal.shape[0]
@@ -218,4 +240,3 @@ class AE(LightningModule):
                 output_signal[i, j, :] = signal[i, j, :] * (min_max[j][1] - min_max[j][0]) + min_max[j][0]
 
         return output_signal, output_reconstruct
-

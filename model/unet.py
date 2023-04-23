@@ -82,43 +82,19 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
-
-class UNet(LightningModule):
-    def __init__(self, task="A", bilinear=False):
-        super(UNet, self).__init__()
-        self.task = task
-
-        if self.task == "A":
-            input_ch = 4
-            output_ch = 1
-        elif self.task == "B":
-            input_ch = 2
-            output_ch = 3
-        else:
-            input_ch = 5
-            output_ch = 5
-
-
+    
+class Encoder(nn.Module):
+    def __init__(self, bilinear = False):
+        super(Encoder, self).__init__()
         self.input_conv = nn.Sequential(
-            nn.Conv1d(input_ch, 64, 3, 1, 1),
+            nn.Conv1d(5, 64, 3, 1, 1),
         )
-
         self.inc = (DoubleConv(64, 64))
         self.down1 = (Down(64, 128))
         self.down2 = (Down(128, 256))
         self.down3 = (Down(256, 512))
         factor = 2 if bilinear else 1
-        self.down4 = (Down(512, 1024 // factor))
-        self.up1 = (Up(1024, 512 // factor, bilinear))
-        self.up2 = (Up(512, 256 // factor, bilinear))
-        self.up3 = (Up(256, 128 // factor, bilinear))
-        self.up4 = (Up(128, 64, bilinear))
-        self.outc = (OutConv(64, 64))
-
-        self.output_conv = nn.Sequential(
-            nn.Conv1d(64, output_ch, 3, 1, 1), 
-        )
-        
+        self.down4 = (Down(512, 1024) // factor)
 
     def forward(self, x):
         x = self.input_conv(x)
@@ -127,6 +103,23 @@ class UNet(LightningModule):
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
+        return x1, x2, x3, x4, x5
+    
+class Decoder(nn.Module):
+    def __init__(self, bilinear = False):
+        super(Decoder, self).__init__()
+        factor = 2 if bilinear else 1
+        self.down4 = (Down(512, 1024 // factor))
+        self.up1 = (Up(1024, 512 // factor, bilinear))
+        self.up2 = (Up(512, 256 // factor, bilinear))
+        self.up3 = (Up(256, 128 // factor, bilinear))
+        self.up4 = (Up(128, 64, bilinear))
+        self.outc = (OutConv(64, 64))
+        self.output_conv = nn.Sequential(
+            nn.Conv1d(64, output_ch, 3, 1, 1), 
+        )
+
+    def forward(self, x1, x2, x3, x4, x5):
         x = self.up1(x5, x4)
         x = self.up2(x, x3)
         x = self.up3(x, x2)
@@ -134,6 +127,20 @@ class UNet(LightningModule):
         x = self.outc(x)
         logits = self.output_conv(x)
         return logits, x5
+
+
+class UNet(LightningModule):
+    def __init__(self, task="A", bilinear=False):
+        super(UNet, self).__init__()
+        self.Encoder = Encoder()
+        self.Decoder = Decoder()
+
+    def forward(self, x):
+        x1, x2, x3, x4, x5 = self.Encoder(x)
+        pred, latent = self.Decoder(x1, x2, x3, x4, x5)
+        return pred, latent
+       
+        
     
     
     def configure_optimizers(self):
@@ -228,7 +235,7 @@ class UNet(LightningModule):
         pred = np.concatenate(pred_list, axis=0)
         
 
-        plt_length = 512
+        plt_length = 1024
 
         bs, _, _ = input.shape
         fig, axes = plt.subplots(5, 1, figsize=(20,8))

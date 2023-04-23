@@ -13,40 +13,54 @@ from pytorch_lightning import LightningModule
 
 from torchinfo import summary
 
-from model.Displacement.autoencoder import AE, DamageAE, TripletAE
+from model.Displacement.extraction import AE, DamageAE, TripletAE
+from ..utils import DoubleConv, Down, Up, OutConv
 
 
 class Encoder(nn.Module):
-    def __init__(self, length=1024, latent_dim=512):
+    def __init__(self, bilinear = False):
         super(Encoder, self).__init__()
-
-        self.encoder = nn.Sequential(
-            nn.Conv1d(5, 16, 3, 1, 1),
-            nn.BatchNorm1d(16),
-            nn.ReLU(),
-            nn.Conv1d(16, 32, 4, 2, 1),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.Conv1d(32, 64, 4, 2, 1),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Conv1d(64, 128, 4, 2, 1),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Conv1d(128, 256, 4, 2, 1),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Conv1d(256, 512, 4, 2, 1),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Conv1d(512, 1024, 32, 1, 0),
+        self.input_conv = nn.Sequential(
+            nn.Conv1d(5, 64, 3, 1, 1),
         )
-    
-        
+        self.inc = (DoubleConv(64, 64))
+        self.down1 = (Down(64, 128))
+        self.down2 = (Down(128, 256))
+        self.down3 = (Down(256, 512))
+        factor = 2 if bilinear else 1
+        self.down4 = (Down(512, 1024 // factor) )
 
     def forward(self, x):
-        x = self.encoder(x)
-        return x
+        x = self.input_conv(x)
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        return x1, x2, x3, x4, x5
+    
+class Decoder(nn.Module):
+    def __init__(self, bilinear = False):
+        super(Decoder, self).__init__()
+        factor = 2 if bilinear else 1
+        self.down4 = (Down(512, 1024 // factor))
+        self.up1 = (Up(1024, 512 // factor, bilinear))
+        self.up2 = (Up(512, 256 // factor, bilinear))
+        self.up3 = (Up(256, 128 // factor, bilinear))
+        self.up4 = (Up(128, 64, bilinear))
+        self.outc = (OutConv(64, 64))
+        self.output_conv = nn.Sequential(
+            nn.Conv1d(64, 5, 3, 1, 1), 
+        )
+
+    def forward(self, x1, x2, x3, x4, x5):
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
+        x = self.outc(x)
+        logits = self.output_conv(x)
+        return logits, x5
 
 class Classifier(nn.Module):
     def __init__(self):
@@ -73,21 +87,21 @@ class CNN(LightningModule):
         if load_model != "None":
             if load_model == "DamageAE":
                 self.model = DamageAE.load_from_checkpoint(
-                "./Logs/Extraction/autoencoder_DamageAE/Final/version_0/checkpoints/epoch=00424-train_loss=0.00303373.ckpt").to(self.device)
+                "./Logs/Extraction/Displacement-DamageAE/Final/version_0/checkpoints/epoch=00424-train_loss=0.00303373.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder
                 
             elif load_model == "TripletAE":
                 self.model = TripletAE.load_from_checkpoint(
-                "./Logs/Extraction/autoencoder_TripletAE/Final/version_0/checkpoints/epoch=00472-train_loss=0.00460899.ckpt").to(self.device)
+                "./Logs/Extraction/Displacement-TripletAE/Final/version_0/checkpoints/epoch=00472-train_loss=0.00460899.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder
 
             elif load_model == "AE":
                 self.model = AE.load_from_checkpoint(
-                "./Logs/Extraction/autoencoder_AE/Final/version_0/checkpoints/epoch=00500-train_loss=0.00128296.ckpt").to(self.device)
+                "./Logs/Extraction/Displacement-AE/Final/version_0/checkpoints/epoch=00500-train_loss=0.00128296.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder

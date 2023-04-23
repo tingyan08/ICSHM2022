@@ -11,15 +11,15 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
-from dataset.DataReconstruct import DataDrivenDataset
+from dataset.Acceleration.DataReconstruction import DataReconstructionDataset
 
 
-def create_dataloader(task):
+def create_dataloader():
     num_workers = min(os.cpu_count(), 4)
-    train_dataset = DataDrivenDataset(path="./Data", mode="train", task=task)
+    train_dataset = DataReconstructionDataset(path="./Data", mode="train")
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-    valid_dataset = DataDrivenDataset(path="./Data", mode="valid", task=task)
+    valid_dataset = DataReconstructionDataset(path="./Data", mode="valid")
     valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=False)
 
     return train_dataloader, valid_dataloader
@@ -30,16 +30,16 @@ def main(args):
 
 
     max_epochs = args.max_epoch
-    model = import_module(f'model.{args.arch}').__dict__[args.trainer](task=args.task)
+    model = import_module(f'model.Acceleration.{args.arch}').__dict__[args.trainer](load_model=args.load_model, transfer=args.transfer)
 
     print("Total number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-    train_dataloader, valid_dataloader = create_dataloader(task=args.task)
+    train_dataloader, valid_dataloader = create_dataloader()
     
     #TensorBoard
-    save_dir = f"Logs/Reconstruction/{args.arch}_{args.trainer}"
+    save_dir = f"Logs/Reconstruction/Acceleration-{args.trainer}"
 
-    name = f"{args.task}/"
+    name = f"{args.description}/"
 
 
     logger = TensorBoardLogger(
@@ -85,12 +85,11 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
-    parser.add_argument('--arch', type=str,  default="unet", help = 'The file where trainer located')
-    parser.add_argument('--trainer', type=str,  default="UNet", help = 'The trainer we used')
-
-    parser.add_argument('--task', type=str, default="A")
+    parser.add_argument('--arch', type=str,  default="reconstruction", help = 'The file where trainer located')
+    parser.add_argument('--trainer', type=str,  default="EncoderDecoder", help = 'The trainer we used')
  
-
+    parser.add_argument('--load_model', type=str,  default="AE", help = 'Model to load')
+    parser.add_argument('--transfer', type=bool,  default=True, help = 'If load model is defined, transfer freeze the parameters')
 
     parser.add_argument('--description', type=str, default="None", help = 'description of the experiment')
     parser.add_argument('--version', type=int, help = 'version')

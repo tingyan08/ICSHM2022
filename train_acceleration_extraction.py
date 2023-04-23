@@ -52,9 +52,9 @@ def main(args):
     # Save top-3 val loss models
     checkpoint_best_callback = ModelCheckpoint(
         save_top_k=1,
-        monitor="train_loss", 
+        monitor="val_loss", 
         mode="min",
-        filename="{epoch:05d}-{train_loss:.8f}"
+        filename="{epoch:05d}-{val_loss:.8f}"
     )
 
 
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
-    parser.add_argument('--arch', type=str,  default="autoencoder", help = 'The file where trainer located')
+    parser.add_argument('--arch', type=str,  default="extraction", help = 'The file where trainer located')
     parser.add_argument('--trainer', type=str,  default="AE", help = 'The trainer we used')
 
     parser.add_argument('--description', type=str,  default="None")

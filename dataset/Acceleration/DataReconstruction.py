@@ -41,8 +41,8 @@ def min_max_scaler(signal, min_max):
 class DataReconstructionDataset(Dataset):
     def __init__(self, path, mode="train", id=1) -> None:
         self.path = path
-        self.train_path = os.path.join(self.path, "train")
-        self.test_path = os.path.join(self.path, "test")
+        self.train_path = os.path.join(self.path, "Acceleration", "train")
+        self.test_path = os.path.join(self.path, "Acceleration", "test")
         self.mode = mode
 
         if id == 1:
@@ -50,7 +50,7 @@ class DataReconstructionDataset(Dataset):
         else:
             self.mask = (2, 3, 4)
 
-        self.min_max = pd.read_csv(os.path.join(self.path, "min_max.csv")).values
+        self.min_max = pd.read_csv(os.path.join(self.path, "Acceleration", "min_max.csv")).values
         
         if self.mode != "evaluate":
         
@@ -67,8 +67,8 @@ class DataReconstructionDataset(Dataset):
             self.test_id = []
 
             for signal_name in sorted(os.listdir(self.train_path)):
-                name, _, _ = scipy.io.whosmat(os.path.join(self.path, "train", signal_name))[0]
-                x = scipy.io.loadmat(os.path.join(self.path, "train", signal_name))[name]
+                name, _, _ = scipy.io.whosmat(os.path.join(self.train_path, signal_name))[0]
+                x = scipy.io.loadmat(os.path.join(self.train_path, signal_name))[name]
                 x = min_max_scaler(x, self.min_max)
                 
 
@@ -89,7 +89,7 @@ class DataReconstructionDataset(Dataset):
                 
 
         else:
-            self.data_path = os.path.join(self.path, "test", f"data_noised_testset{id}.mat")
+            self.data_path = os.path.join(self.test_path, f"data_noised_testset{id}.mat")
             self.name, _, _ = scipy.io.whosmat(self.data_path)[0]
             self.signal = scipy.io.loadmat(self.data_path)[self.name]
             self.signal = min_max_scaler(self.signal, self.min_max)
