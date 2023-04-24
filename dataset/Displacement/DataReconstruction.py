@@ -117,43 +117,50 @@ class DataReconstructionDataset(Dataset):
     def __getitem__(self, index) -> torch.tensor:
         if self.mode == "train":
             mask = self.train_mask[index]
-            input = self.train_data[index]
-            target = np.copy(input)
+            target = self.train_data[index]
+            masked_input = np.zeros_like(target)
             for i in range(5):
                 if i in mask:
-                    input[i, :] = input[i, :] * 0
+                    masked_input[i, :] = target[i, :] * 0
+                else:
+                    masked_input[i, :] = target[i, :]
 
-            input = torch.tensor(input, dtype=torch.float32)
+            masked_input = torch.tensor(masked_input, dtype=torch.float32)
             target = torch.tensor(target, dtype=torch.float32)
 
 
-            return input, target
+            return masked_input, target
 
         elif self.mode == "valid":
             mask = self.valid_mask[index]
-            input = self.valid_data[index]
-            target = np.copy(input)
+            target = self.valid_data[index]
+            masked_input = np.zeros_like(target)
             for i in range(5):
                 if i in mask:
-                    input[i, :] = input[i, :] * 0
+                    masked_input[i, :] = target[i, :] * 0
+                else:
+                    masked_input[i, :] = target[i, :]
 
-            input = torch.tensor(input, dtype=torch.float32)
+            masked_input = torch.tensor(masked_input, dtype=torch.float32)
             target = torch.tensor(target, dtype=torch.float32)
 
-            return input, target
+
+            return masked_input, target
         
         elif self.mode == "test":
             mask = self.test_mask[index]
-            input = self.test_data[index]
-            target = np.copy(input)
+            target = self.test_data[index]
+            masked_input = np.zeros_like(target)
             for i in range(5):
                 if i in mask:
-                    input[i, :] = input[i, :] * 0
+                    masked_input[i, :] = target[i, :] * 0
+                else:
+                    masked_input[i, :] = target[i, :]
 
-            input = torch.tensor(input, dtype=torch.float32)
+            masked_input = torch.tensor(masked_input, dtype=torch.float32)
             target = torch.tensor(target, dtype=torch.float32)
 
-            return input, target
+            return masked_input, target
 
         else:
             input = self.evaluate_data[index]

@@ -94,7 +94,7 @@ class AE(LightningModule):
     def forward(self, X):
         latent = self.encoder(X)
         reconstruct = self.decoder(latent)
-        return latent, reconstruct
+        return reconstruct, latent[-1]
 
     
     def reconstruction_loss(self, 

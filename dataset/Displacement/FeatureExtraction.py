@@ -169,7 +169,7 @@ class FeatureExtractionDataset(Dataset):
             return anchor_signal, anchor_label, anchor_state
         
         elif self.mode == "test":
-            anchor_signal = self.test_Data[idx]
+            anchor_signal = self.test_data[idx]
             anchor_state = self.test_id[idx]
             anchor_label = self.test_label[idx]
 

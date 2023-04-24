@@ -74,8 +74,8 @@ class DamageIdentificationDataset(Dataset):
                     label = one_hot(label)
                 label = [label for i in range(len(sliding_signal))]
 
-                train_x, valid_x, train_y, valid_y = train_test_split(sliding_signal, label, train_size=0.7, random_state=0)
-                valid_x, test_x, valid_y, test_y = train_test_split(valid_x, valid_y, train_size=(2/3.), random_state=0)
+                train_x, temp_x, train_y, temp_y = train_test_split(sliding_signal, label, train_size=0.7, random_state=0)
+                valid_x, test_x, valid_y, test_y = train_test_split(temp_x, temp_y, train_size=(2/3.), random_state=0)
                 
 
 
@@ -129,13 +129,13 @@ class DamageIdentificationDataset(Dataset):
         elif self.mode == "valid":
             input = torch.tensor(self.valid_data[idx], dtype=torch.float32)
             signal_id = torch.tensor(self.valid_id[idx], dtype=torch.float32)
-            label = torch.tensor(self.train_label[idx], dtype=torch.float32)
+            label = torch.tensor(self.valid_label[idx], dtype=torch.float32)
             return input, label, signal_id
         
         elif self.mode == "test":
             input = torch.tensor(self.test_data[idx], dtype=torch.float32)
             signal_id = torch.tensor(self.test_id[idx], dtype=torch.float32)
-            label = torch.tensor(self.train_label[idx], dtype=torch.float32)
+            label = torch.tensor(self.test_label[idx], dtype=torch.float32)
             return input, label, signal_id
 
         else:

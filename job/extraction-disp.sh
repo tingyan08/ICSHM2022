@@ -13,5 +13,5 @@ module load cuda-11.7
 
 
 # python3 train_displacement_extraction.py --arch extraction --trainer AE --max_epoch 500 --description unet
-python3 train_displacement_extraction.py --arch extraction --trainer DamageAE --max_epoch 500 --description unet
+python3 train_displacement_extraction.py --arch extraction --trainer DamageAE --max_epoch 500 --description unet-regression
 # python3 train_displacement_extraction.py --arch extraction --trainer TripletAE --max_epoch 500 --description unet

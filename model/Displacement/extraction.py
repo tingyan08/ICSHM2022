@@ -797,5 +797,5 @@ class DamageAE(LightningModule):
             "No.38 Target (%)": target[:, 2]*100, 
         })
   
-        df.to_csv(os.path.join(self.trainer.log_dir, f"mode.csv"), index=False)
+        df.to_csv(os.path.join(self.trainer.log_dir, f"{mode}.csv"), index=False)
    

@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
-from ..dataset.DamageGeneration import DamageDataGenerationDataset
+from dataset.Displacement.DataGeneration import DamageDataGenerationDataset
 
 
 def create_dataloader():
@@ -27,14 +27,14 @@ def main(args):
 
 
     max_epochs = args.max_epoch
-    model = import_module(f'model.{args.arch}').__dict__[args.trainer]()
+    model = import_module(f'model.Displacement.{args.arch}').__dict__[args.trainer]()
 
     print(f"Total number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)/1024/1024:.4f} MB", )
 
     train_dataloader = create_dataloader()
     
     #TensorBoard
-    save_dir = f"Logs/Generation/{args.arch}_{args.trainer}"
+    save_dir = f"Logs/Generation/Displacement_{args.trainer}"
 
     name = f"{args.description}/"
 
@@ -52,6 +52,7 @@ def main(args):
         filename="{epoch:05d}"
     )
 
+
     logger = TensorBoardLogger(
         save_dir = save_dir, 
         version = args.version,
@@ -59,11 +60,6 @@ def main(args):
         default_hp_metric = True)
     
     
-
-
-
-
-
     # training
     gpu = "gpu" if args.gpu else "cpu"
     trainer = Trainer(accelerator = gpu, devices = args.device,
@@ -90,12 +86,8 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
-    parser.add_argument('--arch', type=str,  default="cvae_paper", help = 'The file where trainer located')
-    parser.add_argument('--trainer', type=str,  default="CVAE", help = 'The trainer we used')
-
-    parser.add_argument('--data_type', type=str, default="1D", help = 'Type of the data.')
- 
-
+    parser.add_argument('--arch', type=str,  default="generation", help = 'The file where trainer located')
+    parser.add_argument('--trainer', type=str,  default="WCGAN_GP", help = 'The trainer we used')
 
     parser.add_argument('--description', type=str, default="None", help = 'description of the experiment')
     parser.add_argument('--version', type=int, help = 'version')

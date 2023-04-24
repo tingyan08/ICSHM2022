@@ -57,6 +57,12 @@ def main(args):
         filename="{epoch:05d}-{val_loss:.4f}"
     )
 
+    # Save model at the middle epoch and last
+    checkpoint_epoch_callback = ModelCheckpoint(
+        every_n_epochs=int((max_epochs + 1)/2),
+        filename="{epoch:05d}"
+    )
+
 
     # training
     gpu = "gpu" if args.gpu else "cpu"
@@ -65,7 +71,7 @@ def main(args):
                         max_epochs = max_epochs + 1,
                         profiler = "simple", 
                         num_sanity_val_steps = 30,
-                        callbacks = [checkpoint_best_callback]
+                        callbacks = [checkpoint_best_callback, checkpoint_epoch_callback]
                         )
 
 

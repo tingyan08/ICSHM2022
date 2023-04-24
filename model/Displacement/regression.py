@@ -102,7 +102,7 @@ class CNN(LightningModule):
         if load_model != "None":
             if load_model == "DamageAE":
                 self.model = DamageAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-DamageAE/unet/version_0/checkpoints/epoch=00499-val_loss=0.00009306.ckpt").to(self.device)
+                "./Logs/Extraction/Displacement-DamageAE/unet-regression/version_0/checkpoints/epoch=00118-val_loss=0.02089089.ckpt").to(self.device)
                 if transfer:
                     self.model.freeze()
                 self.model = self.model.encoder

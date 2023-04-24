@@ -81,12 +81,12 @@ class Decoder(nn.Module):
 
 class EncoderDecoder(LightningModule):
 
-    def __init__(self, load_model=None, transfer=False):
+    def __init__(self, load_model="None", transfer=False):
         super().__init__()
         if load_model != "None":
             if load_model == "AE":
                 self.encoder = AE.load_from_checkpoint(
-                "./Logs/Extraction/Acceleration-AE/Final/version_0/checkpoints/epoch=00500-train_loss=0.00020019.ckpt").to(self.device)
+                "./Logs/Extraction/Acceleration-AE/unet/version_0/checkpoints/epoch=00500-val_loss=0.00020139.ckpt").to(self.device)
                 if transfer:
                     self.encoder.freeze()
                 self.encoder = self.encoder.encoder
@@ -197,8 +197,8 @@ class EncoderDecoder(LightningModule):
         loss = np.concatenate([loss], axis=0)
         mse_loss = np.concatenate([mse_loss], axis=0)
 
-        self.logger.experiment.add_scalar(f'Train/Loss/Loss', loss.mean(), self.current_epoch)
-        self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Validation/Loss/Loss', loss.mean(), self.current_epoch)
+        self.logger.experiment.add_scalar(f'Validation/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
         self.log("val_loss", mse_loss.mean())
     
@@ -240,22 +240,21 @@ class EncoderDecoder(LightningModule):
                 break
 
 
-        plt_length = 512
 
         bs, num, length = target_signal.shape
         
         fig, axes = plt.subplots(num, 1, figsize=(20,8))
         for i in range(num):
-            if len(np.unique(masked_signal[id, i, :plt_length])) != 1:
-                line1 = axes[i].plot(range(len(target_signal[id, i, :plt_length])), target_signal[id, i, :plt_length], color="tab:orange",  label="Original Signal")
-                line2 = axes[i].plot(range(len(prediction[id, i, :plt_length])), prediction[id, i, :plt_length], color="tab:green", linestyle="--",  label="Reconstruction Signal")          
+            if len(np.unique(masked_signal[id, i, :])) != 1:
+                line1 = axes[i].plot(range(len(target_signal[id, i, :])), target_signal[id, i, :], color="tab:orange",  label="Original Signal")
+                line2 = axes[i].plot(range(len(prediction[id, i, :])), prediction[id, i, :], color="tab:green", linestyle="--",  label="Reconstruction Signal")          
             else:
-                line3 = axes[i].plot(range(len(target_signal[id, i, :plt_length])), target_signal[id, i, :plt_length], color="tab:blue",  label="Original Signal (Masked)")
-                line4 = axes[i].plot(range(len(prediction[id, i, :plt_length])), prediction[id, i, :plt_length], color="tab:red", linestyle="--",  label="Reconstruction Signal  (Masked)") 
-            
+                line3 = axes[i].plot(range(len(target_signal[id, i, :])), target_signal[id, i, :], color="tab:blue",  label="Original Signal (Masked)")
+                line4 = axes[i].plot(range(len(prediction[id, i, :])), prediction[id, i, :], color="tab:red", linestyle="--",  label="Reconstruction Signal  (Masked)") 
+
             axes[i].set_xticks([])
         
         fig.suptitle(f"Epoch {self.current_epoch}")
         fig.legend(handles =[line1[0], line2[0], line3[0], line4[0]], loc ='lower center', ncol=4)
-        self.logger.experiment.add_figure(f'Train/Visualize (Task {task})', fig , self.current_epoch)
+        self.logger.experiment.add_figure(f'Validation/Visualize (Task {task})', fig , self.current_epoch)
 

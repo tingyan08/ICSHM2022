@@ -40,7 +40,7 @@ def one_hot(label):
 
 class FeatureExtractionDataset(Dataset):
     def __init__(self, path, mode="train", triplet=False, Damage=False) -> None:
-        self.path = os.path.join(path, "Displacement")
+        self.path = os.path.join(path, "Acceleration")
         self.triplet = triplet
         self.Damage = Damage
         self.train_path = os.path.join(self.path, "train")
@@ -70,7 +70,6 @@ class FeatureExtractionDataset(Dataset):
                 self.train_data += train_x
                 self.valid_data += valid_x
                 self.test_data += test_x
-
             
 
         elif self.mode == "evaluate":
