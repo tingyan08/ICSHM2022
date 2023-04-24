@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l select=1:ncpus=4:gpu_id=3
+#PBS -l select=1:ncpus=4:gpu_id=1
 ###PBS -l place=excl
 #PBS -o out.txt				
 #PBS -e err.txt				

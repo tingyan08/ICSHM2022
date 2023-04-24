@@ -86,7 +86,7 @@ class EncoderDecoder(LightningModule):
         if load_model != "None":
             if load_model == "AE":
                 self.encoder = AE.load_from_checkpoint(
-                "./Logs/Extraction/Acceleration-AE/unet/version_0/checkpoints/epoch=00500-val_loss=0.00020139.ckpt").to(self.device)
+                "./Logs/Extraction/Acceleration-AE/stride_dataset/version_0/checkpoints/epoch=00494-val_loss=0.00000489.ckpt").to(self.device)
                 if transfer:
                     self.encoder.freeze()
                 self.encoder = self.encoder.encoder

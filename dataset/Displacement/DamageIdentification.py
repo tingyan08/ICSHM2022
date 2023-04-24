@@ -68,7 +68,7 @@ class DamageIdentificationDataset(Dataset):
                 x = min_max_scaler(x, self.min_max)
                 
 
-                sliding_signal = sliding_window(x, window=1024, stride=1024)
+                sliding_signal = sliding_window(x, window=1024, stride=128)
                 label = label_file.loc[label_file['File Name'] == signal_name].values[0, 1:4].astype(float)
                 if classification:
                     label = one_hot(label)

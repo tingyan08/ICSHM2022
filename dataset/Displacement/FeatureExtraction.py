@@ -107,7 +107,7 @@ class FeatureExtractionDataset(Dataset):
                 x = scipy.io.loadmat(os.path.join(self.path, "test", signal_name))[name]
                 x = min_max_scaler(x, self.min_max)
                 
-                sliding_signal = sliding_window(x, window=1024, stride=1024)
+                sliding_signal = sliding_window(x, window=1024, stride=128)
                 self.evaluation_data += sliding_signal
 
         else:

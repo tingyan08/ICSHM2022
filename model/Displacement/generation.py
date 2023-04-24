@@ -83,6 +83,7 @@ class generator(nn.Module):
         x = self.linear(x)
         x = self.encoder(x)
         x = self.decoder(x)
+        x = x - torch.mean(x, axis=2).unsqueeze(-1).repeat(1, 1, 1024) + 0.5 * torch.ones_like(x).to("cuda")
         return x
 
 
@@ -209,20 +210,18 @@ class WCGAN_GP(LightningModule):
         
             # generate signal
             generated_data = self(z, condition)
-            mean = torch.mean(generated_data, axis=2)
-            target_mean = torch.zeros_like(mean, dtype = torch.float32).to(self.device)
-            mean_loss = nn.MSELoss()(mean, target_mean)
+            
 
             # adversarial loss is binary cross-entropy
             d_generated = self.discriminator(generated_data, condition)
-            g_loss = -d_generated.mean() + mean_loss
+            g_loss = -d_generated.mean() 
 
             # transform to latent space
             _, _, _, _, _, _, input_latent = self.feature_extractor(real_data)
             _, _, _, _, _, _, synthetic_latent = self.feature_extractor(generated_data)
             
             self.logger.experiment.add_scalar(f'Learning rate', self.optimizers()[0].param_groups[0]['lr'], self.current_epoch)
-            return {"loss": g_loss,  "mean_loss": mean_loss, "real_data": real_data, "generated_data": generated_data,\
+            return {"loss": g_loss,  "real_data": real_data, "generated_data": generated_data,\
                     "input_latent":input_latent, "synthetic_latent":synthetic_latent, "situation": situation}
 
         # train discriminator
@@ -255,7 +254,6 @@ class WCGAN_GP(LightningModule):
     def training_epoch_end(self, training_step_outputs):
         G_loss = []
         D_loss = []
-        mean_loss = []
 
         generated_data = []
         real_data = []
@@ -267,7 +265,6 @@ class WCGAN_GP(LightningModule):
         for step_result in training_step_outputs:
             G_loss.append(step_result[0]["loss"].cpu().detach().numpy())
             D_loss.append(step_result[1]["loss"].cpu().detach().numpy())
-            mean_loss.append(step_result[0]["mean_loss"].cpu().detach().numpy())
 
             generated_data.append(step_result[0]["generated_data"].cpu().detach().numpy())
             real_data.append(step_result[0]["real_data"].cpu().detach().numpy())
@@ -278,10 +275,8 @@ class WCGAN_GP(LightningModule):
             
         G_loss = np.concatenate([G_loss], axis=0)
         D_loss = np.concatenate([D_loss], axis=0)
-        mean_loss = np.concatenate([mean_loss], axis=0)
         self.logger.experiment.add_scalar(f'Train/Loss/G_loss', G_loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Train/Loss/D_loss', D_loss.mean(), self.current_epoch)
-        self.logger.experiment.add_scalar(f'Train/Loss/mean_loss', mean_loss.mean(), self.current_epoch)
 
         generated_data = np.concatenate(generated_data, axis=0)
         real_data = np.concatenate(real_data, axis=0)

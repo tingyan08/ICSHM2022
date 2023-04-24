@@ -62,7 +62,7 @@ class FeatureExtractionDataset(Dataset):
                 x = min_max_scaler(x, self.min_max)
                 
 
-                sliding_signal = sliding_window(x, window=1024, stride=1024)
+                sliding_signal = sliding_window(x, window=1024, stride=128)
 
                 train_x, valid_x = train_test_split(sliding_signal, train_size=0.7, random_state=0)
                 valid_x, test_x = train_test_split(valid_x, train_size=(2/3.), random_state=0)

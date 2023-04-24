@@ -13,4 +13,4 @@ module load cuda-11.7
 
 
 
-python3 train_displacement_generation.py --arch generation --trainer WCGAN_GP --max_epoch 500 --description mean_constraint
+python3 train_displacement_generation.py --arch generation --trainer WCGAN_GP --max_epoch 500 --description mean_0
