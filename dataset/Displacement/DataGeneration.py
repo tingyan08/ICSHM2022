@@ -54,7 +54,7 @@ class DamageDataGenerationDataset(Dataset):
             x = scipy.io.loadmat(os.path.join(self.path, "Displacement", "train", signal_name))[name]
             x = min_max_scaler(x, self.min_max)
 
-            sliding_signal = sliding_window(x, window=1024, stride=1024)
+            sliding_signal = sliding_window(x, window=1024, stride=128)
             self.data += sliding_signal
 
             damage = label_file.loc[label_file['File Name'] == signal_name].values[0, 1:4].astype(float)

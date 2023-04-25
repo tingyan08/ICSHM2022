@@ -86,21 +86,21 @@ class EncoderDecoder(LightningModule):
         if load_model != "None":
             if load_model == "DamageAE":
                 self.encoder = DamageAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-DamageAE/unet-regression/version_0/checkpoints/epoch=00118-val_loss=0.02089089.ckpt").to(self.device)
+                "./Logs/Extraction/Displacement-DamageAE/stride_dataset/version_0/checkpoints/epoch=00198-val_loss=0.02024942.ckpt").to(self.device)
                 if transfer:
                     self.encoder.freeze()
                 self.encoder = self.encoder.encoder
                 
             elif load_model == "TripletAE":
                 self.encoder = TripletAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-TripletAE/unet/version_0/checkpoints/epoch=00466-val_loss=0.00045464.ckpt").to(self.device)
+                "./Logs/Extraction/Displacement-TripletAE/stride_dataset/version_0/checkpoints/epoch=00497-val_loss=0.00036773.ckpt").to(self.device)
                 if transfer:
                     self.encoder.freeze()
                 self.encoder = self.encoder.encoder
 
             elif load_model == "AE":
                 self.encoder = AE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-AE/unet/version_0/checkpoints/epoch=00499-val_loss=0.00009306.ckpt").to(self.device)
+                "./Logs/Extraction/Displacement-AE/stride_dataset/version_0/checkpoints/epoch=00495-val_loss=0.00010719.ckpt").to(self.device)
                 if transfer:
                     self.encoder.freeze()
                 self.encoder = self.encoder.encoder
