@@ -248,17 +248,14 @@ class CNN(LightningModule):
 
 
 class CNN_FineTune(LightningModule):
-    def __init__(self, checkpoint="Logs/Identification/Displacement-regression/From_scratch/version_2/checkpoints/epoch=00343-val_loss=0.0000.ckpt"):
+    def __init__(self, checkpoint="./Logs/Identification/Displacement-regression/From_scratch/version_2/checkpoints/epoch=00343-val_loss=0.0000.ckpt"):
         super(CNN_FineTune, self).__init__()
-        self.model = Encoder()
-        self.classifier = Classifier()
-        self = self.load_from_checkpoint(checkpoint)
+        self.model = CNN.load_from_checkpoint(checkpoint)
         self.save_hyperparameters()
         
 
     def forward(self, x):
         x = self.model(x)
-        x = self.classifier(x[-1])
         return x
     
     # def configure_optimizers(self):
@@ -280,30 +277,25 @@ class CNN_FineTune(LightningModule):
 
 
     def training_step(self, batch, batch_idx):
-        input, target, signal_id = batch
+        input, target = batch
         pred = self.forward(input)
         loss = nn.MSELoss()(pred, target)
 
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
 
-        return {"loss": loss , "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2], \
-                "signal_id":signal_id}
+        return {"loss": loss , "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2]}
     
     
     def validation_step(self, batch, batch_idx):
-        input, target, signal_id = batch
+        input, target = batch
         pred = self.forward(input)
         loss = nn.MSELoss()(pred, target)
 
-        return {"loss": loss, "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2], \
-                "signal_id":signal_id}
+        return {"loss": loss, "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2]}
 
 
     def training_epoch_end(self, training_step_outputs):
-        signal_id = [i["signal_id"].cpu().detach().numpy() for i in training_step_outputs]
-        signal_id = np.concatenate(signal_id)
-
         loss = np.array([i["loss"].detach().cpu() for i in training_step_outputs])
         self.logger.experiment.add_scalar(f'Train/Loss/Total', loss.mean(), self.current_epoch)
 
@@ -329,8 +321,6 @@ class CNN_FineTune(LightningModule):
 
 
     def validation_epoch_end(self, valdiation_step_outputs):
-        signal_id = [i["signal_id"].cpu().numpy() for i in valdiation_step_outputs]
-        signal_id = np.concatenate(signal_id)
 
         loss = np.array([i["loss"].cpu() for i in valdiation_step_outputs])
         self.logger.experiment.add_scalar(f'Validation/Loss/Total', loss.mean(), self.current_epoch)

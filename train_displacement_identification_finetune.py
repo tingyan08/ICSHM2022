@@ -1,6 +1,7 @@
 import os
 import yaml
 import argparse
+import numpy as np
 from argparse import Namespace
 
 from importlib import import_module
@@ -11,15 +12,26 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
-from dataset.Displacement.SyntheticDataset import DamageIdentificationDataset
+from dataset.Displacement.SyntheticFinetune import SyntheticDataset
+
+def get_all_condition():
+    all_condition = []
+    for d7 in range(6):
+        for d22 in range(6):
+            for d38 in range(6):
+                onehot7 = np.eye(6)[d7]
+                onehot22 = np.eye(6)[d22]
+                onehot38 = np.eye(6)[d38]
+                all_condition.append((onehot7, onehot22, onehot38))
+    return all_condition
 
 
 def create_dataloader(args):
     num_workers = min(os.cpu_count(), 4)
-    train_dataset = DamageIdentificationDataset(path="./Data", mode="train", classification=True if args.arch == "classification" else False)
+    train_dataset = SyntheticDataset(n_times=50, defined_condition=get_all_condition(), gan_checkpoint="./Logs/Generation/Displacement_WCGAN_GP/stride_dataset/version_0/checkpoints/epoch=00499.ckpt")
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-    valid_dataset = DamageIdentificationDataset(path="./Data", mode="valid", classification=True if args.arch == "classification" else False)
+    valid_dataset = SyntheticDataset(n_times=50, defined_condition=get_all_condition(), gan_checkpoint="./Logs/Generation/Displacement_WCGAN_GP/stride_dataset/version_0/checkpoints/epoch=00499.ckpt")
     valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=False)
 
     return train_dataloader, valid_dataloader
@@ -30,16 +42,14 @@ def main(args):
 
 
     max_epochs = args.max_epoch
-    model = import_module(f'model.Displacement.{args.arch}').__dict__[args.trainer](load_model=args.load_model, transfer=args.transfer)
+    model = import_module(f'model.Displacement.{args.arch}').__dict__[args.trainer]("./Logs/Identification/Displacement-regression/From_scratch/version_2/checkpoints/epoch=00343-val_loss=0.0000.ckpt")
 
     print("Total number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
-
-    task = args.arch.split("_")[-1]
 
     train_dataloader, valid_dataloader = create_dataloader(args)
     
     #TensorBoard
-    save_dir = f"Logs/Identification/Displacement-{args.arch}"
+    save_dir = f"Logs/Identification/Displacement(FineTune)-{args.arch}"
 
     name = f"{args.description}/"
 
@@ -103,11 +113,9 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
-    parser.add_argument('--arch', type=str,  default="classification", help = 'The file where trainer located')
-    parser.add_argument('--trainer', type=str,  default="CNN", help = 'The trainer we used')
+    parser.add_argument('--arch', type=str,  default="regression", help = 'The file where trainer located')
+    parser.add_argument('--trainer', type=str,  default="CNN_FineTune", help = 'The trainer we used')
 
-    parser.add_argument('--load_model', type=str,  default="None", help = 'Model to load')
-    parser.add_argument('--transfer', type=bool,  default=False, help = 'If load model is defined, transfer freeze the parameters')
 
 
     parser.add_argument('--description', type=str, default="None", help = 'description of the experiment')
