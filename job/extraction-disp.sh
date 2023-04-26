@@ -1,6 +1,6 @@
 #!/bin/bash
-#PBS -l select=1:ncpus=4:gpu_id=3
-###PBS -l place=excl
+#PBS -l select=1:ncpus=2:gpu_id=1
+###PBS -l place=shared
 #PBS -o out.txt				
 #PBS -e err.txt				
 #PBS -N Extraction-disp
@@ -12,6 +12,6 @@ conda activate icshm
 module load cuda-11.7			
 
 
-python3 train_displacement_extraction.py --arch extraction --trainer AE --max_epoch 500 --description stride_dataset
-python3 train_displacement_extraction.py --arch extraction --trainer DamageAE --max_epoch 500 --description stride_dataset
-python3 train_displacement_extraction.py --arch extraction --trainer TripletAE --max_epoch 500 --description stride_dataset
+# python3 train_displacement_extraction.py --arch extraction --trainer AE --max_epoch 500 --description LAST
+# python3 train_displacement_extraction.py --arch extraction --trainer DamageAE --max_epoch 500 --description LAST
+python3 train_displacement_extraction.py --arch extraction --trainer TripletAE --max_epoch 500 --description LAST

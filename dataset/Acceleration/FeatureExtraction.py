@@ -61,11 +61,11 @@ class FeatureExtractionDataset(Dataset):
                 x = scipy.io.loadmat(os.path.join(self.path, "train", signal_name))[name]
                 x = min_max_scaler(x, self.min_max)
                 
-
-                sliding_signal = sliding_window(x, window=1024, stride=128)
-
-                train_x, valid_x = train_test_split(sliding_signal, train_size=0.7, random_state=0)
-                valid_x, test_x = train_test_split(valid_x, train_size=(2/3.), random_state=0)
+                length = x.shape[1]
+                crop_range = [0, int(0.7 * length), int(0.9 * length), int(length)]
+                train_x = sliding_window(x[:, crop_range[0]:crop_range[1]], window=1024, stride=128)
+                valid_x = sliding_window(x[:, crop_range[1]:crop_range[2]], window=1024, stride=128)
+                test_x = sliding_window(x[:, crop_range[2]:crop_range[3]], window=1024, stride=128)
 
                 self.train_data += train_x
                 self.valid_data += valid_x

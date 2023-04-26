@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
+from sklearn.model_selection import train_test_split
+
 from model.Displacement.extraction import AE, DamageAE, TripletAE
 from scipy import linalg
 
@@ -289,8 +291,31 @@ class WCGAN_GP(LightningModule):
         situation = np.concatenate(situation, axis=0)
 
         self.calculate_fid(synthetic_latent, input_latent, situation)
-        self.draw_tsne(synthetic_latent, input_latent, situation)
-        self.draw_pca(synthetic_latent, input_latent, situation)
+
+        sample_synthetic_latent, sample_input_latent, sample_situation = self.sample(synthetic_latent, input_latent, situation, 0.3)
+
+        self.draw_tsne(sample_synthetic_latent, sample_input_latent, sample_situation)
+        self.draw_pca(sample_synthetic_latent, sample_input_latent, sample_situation)
+
+
+    def sample(self, synthetic_latent, input_latent, situation, ratio):
+        sample_synthetic_latent = []
+        sample_input_latent = []
+        sample_situation = []
+
+        for i in range(1, 12):
+            index = situation == i
+            temp_synthetic_latent, _,  temp_input_latent, _ = train_test_split(list(synthetic_latent[index]), list(input_latent[index]), train_size=ratio, random_state=0)
+            sample_synthetic_latent += temp_synthetic_latent
+            sample_input_latent += temp_input_latent
+            sample_situation += [i for j in range(len(temp_input_latent))]
+
+        sample_synthetic_latent = np.concatenate([sample_synthetic_latent], axis=0)
+        sample_input_latent = np.concatenate([sample_input_latent], axis=0)
+        sample_situation = np.array(sample_situation)
+
+        return sample_synthetic_latent, sample_input_latent, sample_situation
+
     
     
     def draw_pca(self, synthetic_latent, input_latent, situation):

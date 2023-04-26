@@ -68,30 +68,31 @@ class FeatureExtractionDataset(Dataset):
                 name, _, _ = scipy.io.whosmat(os.path.join(self.path, "train", signal_name))[0]
                 x = scipy.io.loadmat(os.path.join(self.path, "train", signal_name))[name]
                 x = min_max_scaler(x, self.min_max)
-                
-
-                sliding_signal = sliding_window(x, window=1024, stride=1024)
+                length = x.shape[1]
                 label = label_file.loc[label_file['File Name'] == signal_name].values[0, 1:4].astype(float)
-                if classification:
-                    label = (label * 10).astype(np.int64)
-                label = [label for i in range(len(sliding_signal))]
 
-                train_x, valid_x, train_y, valid_y = train_test_split(sliding_signal, label, train_size=0.7, random_state=0)
-                valid_x, test_x, valid_y, test_y = train_test_split(valid_x, valid_y, train_size=(2/3.), random_state=0)
+                crop_range = [0, int(0.7 * length), int(0.9 * length), int(length)]
+                print(x[:, crop_range[0]:crop_range[1]].shape)
+                train_x = sliding_window(x[:, crop_range[0]:crop_range[1]], window=1024, stride=128)
+                valid_x = sliding_window(x[:, crop_range[1]:crop_range[2]], window=1024, stride=128)
+                test_x = sliding_window(x[:, crop_range[2]:crop_range[3]], window=1024, stride=128)
                 
+                if classification:
+                    label = one_hot(label)
 
 
                 self.train_data += train_x
-                self.train_label += train_y
+                self.train_label += [label for i in range(len(train_x))]
                 self.train_id += [situation + 1 for i in range(len(train_x))]
 
                 self.valid_data += valid_x
-                self.valid_label += valid_y
+                self.valid_label += [label for i in range(len(valid_x))]
                 self.valid_id += [situation + 1 for i in range(len(valid_x))]
 
                 self.test_data += test_x
-                self.test_label += test_y
+                self.test_label += [label for i in range(len(test_x))]
                 self.test_id += [situation + 1 for i in range(len(test_x))]
+
 
             self.train_index = np.array([i for i in range(len(self.train_data))])
             self.train_id = np.array(self.train_id)

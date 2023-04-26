@@ -198,11 +198,11 @@ class AE(LightningModule):
         self.logger.experiment.add_scalar(f'Train/Loss/Loss', loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
-        anchor_representation = np.concatenate(anchor_representation, axis=0)
-        anchor_state = np.concatenate(anchor_state, axis=0)
+        # all_anchor_representation = np.concatenate(anchor_representation, axis=0)
+        # all_anchor_state = np.concatenate(anchor_state, axis=0)
 
-        self.draw_tsne(anchor_representation, anchor_state, "Train")
-        self.draw_pca(anchor_representation, anchor_state, "Train")
+        # self.draw_tsne(anchor_representation, anchor_state, "Train")
+        # self.draw_pca(anchor_representation, anchor_state, "Train")
 
         anchor_reconstruct = np.concatenate(anchor_reconstruct, axis=0)
         anchor_signal = np.concatenate(anchor_signal, axis=0)
@@ -242,11 +242,11 @@ class AE(LightningModule):
 
         self.log('val_loss', mse_loss.mean())
 
-        anchor_representation = np.concatenate(anchor_representation, axis=0)
-        anchor_state = np.concatenate(anchor_state, axis=0)
+        # anchor_representation = np.concatenate(anchor_representation, axis=0)
+        # anchor_state = np.concatenate(anchor_state, axis=0)
 
-        self.draw_tsne(anchor_representation, anchor_state, "Validation")
-        self.draw_pca(anchor_representation, anchor_state, "Validation")
+        # self.draw_tsne(anchor_representation, anchor_state, "Validation")
+        # self.draw_pca(anchor_representation, anchor_state, "Validation")
 
         anchor_reconstruct = np.concatenate(anchor_reconstruct, axis=0)
         anchor_signal = np.concatenate(anchor_signal, axis=0)
@@ -256,7 +256,8 @@ class AE(LightningModule):
 
         self.visualize(anchor_signal[-1], anchor_reconstruct[-1], "Validation")
 
-    
+
+       
     
     def draw_pca(self, anchor, anchor_label, mode):
         anchor = anchor.squeeze()
@@ -362,8 +363,6 @@ class TripletAE(LightningModule):
         )
 
         loss = triplet_loss + 1.2 * mse_loss
-
-        self.log("train_loss", loss)
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
         return {"loss": loss, "triplet_loss": triplet_loss, "mse_loss": mse_loss, \
@@ -426,11 +425,11 @@ class TripletAE(LightningModule):
         self.logger.experiment.add_scalar(f'Train/Loss/Triplet Loss', triplet_loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
-        anchor_representation = np.concatenate(anchor_representation, axis=0)
-        anchor_state = np.concatenate(anchor_state, axis=0)
+        # anchor_representation = np.concatenate(anchor_representation, axis=0)
+        # anchor_state = np.concatenate(anchor_state, axis=0)
 
-        self.draw_tsne(anchor_representation, anchor_state, "Train")
-        self.draw_pca(anchor_representation, anchor_state, "Train")
+        # self.draw_tsne(anchor_representation, anchor_state, "Train")
+        # self.draw_pca(anchor_representation, anchor_state, "Train")
 
         anchor_reconstruct = np.concatenate(anchor_reconstruct, axis=0)
         anchor_signal = np.concatenate(anchor_signal, axis=0)
@@ -470,11 +469,11 @@ class TripletAE(LightningModule):
 
         self.log("val_loss", mse_loss.mean())
 
-        anchor_representation = np.concatenate(anchor_representation, axis=0)
-        anchor_state = np.concatenate(anchor_state, axis=0)
+        # anchor_representation = np.concatenate(anchor_representation, axis=0)
+        # anchor_state = np.concatenate(anchor_state, axis=0)
 
-        self.draw_tsne(anchor_representation, anchor_state, "Validation")
-        self.draw_pca(anchor_representation, anchor_state, "Validation")
+        # self.draw_tsne(anchor_representation, anchor_state, "Validation")
+        # self.draw_pca(anchor_representation, anchor_state, "Validation")
 
 
         anchor_reconstruct = np.concatenate(anchor_reconstruct, axis=0)
@@ -622,7 +621,7 @@ class DamageAE(LightningModule):
 
         loss = mse_loss + pred_loss
 
-        self.log("val_loss", loss)
+        
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
         return {"loss": loss, "mse_loss": mse_loss, "pred_loss":pred_loss, \
                 "anchor_representation":torch.permute(anchor_representation, (0, 2, 1)), "anchor_state":anchor_state, \
@@ -673,11 +672,11 @@ class DamageAE(LightningModule):
         self.logger.experiment.add_scalar(f'Train/Loss/Prediction Loss', pred_loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
-        anchor_representation = np.concatenate(anchor_representation, axis=0)
-        anchor_state = np.concatenate(anchor_state, axis=0)
+        # anchor_representation = np.concatenate(anchor_representation, axis=0)
+        # anchor_state = np.concatenate(anchor_state, axis=0)
 
-        self.draw_tsne(anchor_representation, anchor_state, "Train")
-        self.draw_pca(anchor_representation, anchor_state, "Train")
+        # self.draw_tsne(anchor_representation, anchor_state, "Train")
+        # self.draw_pca(anchor_representation, anchor_state, "Train")
 
         
 
@@ -726,15 +725,17 @@ class DamageAE(LightningModule):
         pred_loss = np.concatenate([pred_loss], axis=0)
         mse_loss = np.concatenate([mse_loss], axis=0)
 
+        self.log("val_loss", mse_loss.mean())
+
         self.logger.experiment.add_scalar(f'Validation/Loss/Loss', loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Validation/Loss/Prediction Loss', pred_loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Validation/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
-        anchor_representation = np.concatenate(anchor_representation, axis=0)
-        anchor_state = np.concatenate(anchor_state, axis=0)
+        # anchor_representation = np.concatenate(anchor_representation, axis=0)
+        # anchor_state = np.concatenate(anchor_state, axis=0)
 
-        self.draw_tsne(anchor_representation, anchor_state, "Validation")
-        self.draw_pca(anchor_representation, anchor_state, "Validation")
+        # self.draw_tsne(anchor_representation, anchor_state, "Validation")
+        # self.draw_pca(anchor_representation, anchor_state, "Validation")
 
         
 

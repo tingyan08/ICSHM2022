@@ -8,6 +8,7 @@ from importlib import import_module
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
@@ -74,6 +75,8 @@ def main(args):
                         num_sanity_val_steps = 30,
                         callbacks = [checkpoint_best_callback, checkpoint_epoch_callback]
                         )
+    
+
 
 
     trainer.fit(model,

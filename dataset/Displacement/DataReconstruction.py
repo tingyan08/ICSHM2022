@@ -71,13 +71,13 @@ class DataReconstructionDataset(Dataset):
                 x = scipy.io.loadmat(os.path.join(self.train_path, signal_name))[name]
                 x = min_max_scaler(x, self.min_max)
                 
+                length = x.shape[1]
+                crop_range = [0, int(0.7 * length), int(0.9 * length), int(length)]
+                train_x = sliding_window(x[:, crop_range[0]:crop_range[1]], window=1024, stride=128)
+                valid_x = sliding_window(x[:, crop_range[1]:crop_range[2]], window=1024, stride=128)
+                test_x = sliding_window(x[:, crop_range[2]:crop_range[3]], window=1024, stride=128)
 
-                sliding_signal = sliding_window(x, window=1024, stride=128)
-
-                train_x, valid_x = train_test_split(sliding_signal, train_size=0.7, random_state=0)
-                valid_x, test_x = train_test_split(valid_x, train_size=(2/3.), random_state=0)
-                
-
+                             
 
                 self.train_data += train_x
                 self.valid_data += valid_x
@@ -87,14 +87,6 @@ class DataReconstructionDataset(Dataset):
             self.valid_mask = create_mask_array(len(self.valid_data))
             self.test_mask = create_mask_array(len(self.test_data))
                 
-
-        else:
-            self.data_path = os.path.join(self.test_path, f"data_noised_testset{id}.mat")
-            self.name, _, _ = scipy.io.whosmat(self.data_path)[0]
-            self.signal = scipy.io.loadmat(self.data_path)[self.name]
-            self.signal = min_max_scaler(self.signal, self.min_max)
-            self.evaluate_data = sliding_window(self.signal, 1024, 1024)
-            
 
             
 
@@ -112,7 +104,7 @@ class DataReconstructionDataset(Dataset):
             return len(self.test_data)
         
         else:
-            return len(self.evaluate_data)
+            return Exception
 
     def __getitem__(self, index) -> torch.tensor:
         if self.mode == "train":
@@ -173,8 +165,7 @@ class DataReconstructionDataset(Dataset):
 
 
 if __name__ == "__main__":
-    source = "Accleration"
-    dataset = DataReconstructionDataset(path=f"./Data/{source}", mode="evaluate", id=1)
+    dataset = DataReconstructionDataset(path=f"./Data", mode="train", id=1)
     # print(dataset.__len__())
     dataloader = DataLoader(dataset, batch_size=32)
     for batch in dataloader:
