@@ -27,7 +27,6 @@ cd ICSHM2022
 * Install the required dependencies:
 ```
 pip install -r requirement.txt
-
 ```
 ## Feature Extraction
 In this project, we tried to extract the infromative features using autoencoder with different custom losses. To train the model:
