@@ -13,4 +13,4 @@ module load cuda-11.7
 
 
 
-python3 train_displacement_generation.py --arch generation --trainer WCGAN_GP --max_epoch 500 --description stride_dataset
+python3 train_displacement_generation.py --arch generation --trainer WCGAN_GP --max_epoch 200 --description LAST

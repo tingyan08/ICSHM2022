@@ -41,9 +41,9 @@ def main(args):
     # Save top-3 val loss models
     checkpoint_best_callback = ModelCheckpoint(
         save_top_k=1,
-        monitor="FID", 
+        monitor="FJD", 
         mode="min",
-        filename="{epoch:05d}-{fid:.4f}"
+        filename="{epoch:05d}-{fjd:.4f}"
     )
 
     # Save model at the middle epoch and last

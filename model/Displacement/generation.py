@@ -158,8 +158,8 @@ class WCGAN_GP(LightningModule):
         self.generator = generator()
         self.discriminator = discriminator(condition_length=self.condtion_length)
 
-        self.AE = TripletAE.load_from_checkpoint(
-            "./Logs/Extraction/Displacement-TripletAE/unet/version_0/checkpoints/epoch=00466-val_loss=0.00045464.ckpt").to(self.device)
+        self.AE = AE.load_from_checkpoint(
+            "./Logs/Extraction/Displacement-AE/LAST/version_0/checkpoints/epoch=00195-val_loss=0.00002329.ckpt").to(self.device)
         self.AE.eval()
         self.AE.freeze()
         self.feature_extractor = self.AE.encoder
@@ -224,7 +224,7 @@ class WCGAN_GP(LightningModule):
             
             self.logger.experiment.add_scalar(f'Learning rate', self.optimizers()[0].param_groups[0]['lr'], self.current_epoch)
             return {"loss": g_loss,  "real_data": real_data, "generated_data": generated_data,\
-                    "input_latent":input_latent, "synthetic_latent":synthetic_latent, "situation": situation}
+                    "input_latent":input_latent, "synthetic_latent":synthetic_latent, "condition": condition, "situation": situation}
 
         # train discriminator
         if optimizer_idx == 1:
@@ -262,6 +262,7 @@ class WCGAN_GP(LightningModule):
 
         input_latent = []
         synthetic_latent = []
+        condition = []
         situation = []
         
         for step_result in training_step_outputs:
@@ -273,6 +274,7 @@ class WCGAN_GP(LightningModule):
 
             input_latent.append(step_result[0]["input_latent"].cpu().detach().numpy())
             synthetic_latent.append(step_result[0]["synthetic_latent"].cpu().detach().numpy())
+            condition.append(step_result[0]["condition"].cpu().detach().numpy())
             situation.append(step_result[0]["situation"].cpu().detach().numpy())
             
         G_loss = np.concatenate([G_loss], axis=0)
@@ -288,9 +290,15 @@ class WCGAN_GP(LightningModule):
 
         input_latent = np.concatenate(input_latent, axis=0)
         synthetic_latent = np.concatenate(synthetic_latent, axis=0)
+        condition = np.concatenate(condition, axis=0)
         situation = np.concatenate(situation, axis=0)
 
-        self.calculate_fid(synthetic_latent, input_latent, situation)
+        fid = self.calculate_fid(synthetic_latent, input_latent)
+        self.log("FID", fid)
+        self.logger.experiment.add_scalar(f'Train/Loss/FID', fid, self.current_epoch)
+        fjd = self.calculate_fjd(synthetic_latent, input_latent, condition, condition)
+        self.log("FJD", fjd)
+        self.logger.experiment.add_scalar(f'Train/Loss/FJD', fjd, self.current_epoch)
 
         sample_synthetic_latent, sample_input_latent, sample_situation = self.sample(synthetic_latent, input_latent, situation, 0.3)
 
@@ -356,7 +364,49 @@ class WCGAN_GP(LightningModule):
 
         return generated_data, real_data
     
-    def calculate_fid(self, synthetic_latent, input_latent, situation):
+    def calculate_fjd(self, synthetic_latent, input_latent, synthetic_condition, input_condition):
+        input_latent = np.reshape(input_latent,(input_latent.shape[0], -1))
+        synthetic_latent = np.reshape(synthetic_latent,(synthetic_latent.shape[0], -1))
+
+        alpha = self.calculate_alpha(input_latent, input_condition)
+
+        m1, s1 = self.calculate_activation_statistics(np.concatenate([input_latent, input_condition], axis=1))
+        m2, s2 = self.calculate_activation_statistics(np.concatenate([synthetic_latent, synthetic_condition], axis=1))
+
+        mu1, sigma1, mu2, sigma2 = self._scale_statistics(m1, s1, m2, s2, alpha)
+
+        mu1 = np.atleast_1d(mu1)
+        mu2 = np.atleast_1d(mu2)
+
+        sigma1 = np.atleast_2d(sigma1)
+        sigma2 = np.atleast_2d(sigma2)
+
+        diff = mu1 - mu2
+
+        eps = 1E-6
+        # Product might be almost singular
+        covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
+        if not np.isfinite(covmean).all():
+            msg = ('fid calculation produces singular product; '
+                'adding %s to diagonal of cov estimates') % eps
+            print(msg)
+            offset = np.eye(sigma1.shape[0]) * eps
+            covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
+
+        # Numerical error might give slight imaginary component
+        if np.iscomplexobj(covmean):
+            if not np.allclose(np.diagonal(covmean).imag, 0, atol=1e-3):
+                m = np.max(np.abs(covmean.imag))
+                raise ValueError('Imaginary component {}'.format(m))
+            covmean = covmean.real
+
+        tr_covmean = np.trace(covmean)
+
+        fjd = (diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean)
+        return fjd
+        
+
+    def calculate_fid(self, synthetic_latent, input_latent):
         input_latent = np.reshape(input_latent,(input_latent.shape[0], -1))
         synthetic_latent = np.reshape(synthetic_latent,(synthetic_latent.shape[0], -1))
 
@@ -391,10 +441,55 @@ class WCGAN_GP(LightningModule):
         tr_covmean = np.trace(covmean)
 
         fid = (diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean)
-        self.log("FID", fid)
-        self.logger.experiment.add_scalar(f'Train/Loss/FID', fid, self.current_epoch)
+        return fid
+        
 
     def calculate_activation_statistics(self, act):
         mu = np.mean(act, axis=0)
         sigma = np.cov(act, rowvar=False)
+        return mu, sigma
+    
+    def calculate_alpha(self, image_embed, cond_embed, cuda=False):
+        if cuda:
+            image_norm = torch.mean(torch.norm(image_embed, dim=1))
+            cond_norm = torch.mean(torch.norm(cond_embed, dim=1))
+            alpha = (image_norm / cond_norm).item()
+        else:
+            image_norm = np.mean(linalg.norm(image_embed, axis=1))
+            cond_norm = np.mean(linalg.norm(cond_embed, axis=1))
+            alpha = image_norm / cond_norm
+        return alpha
+    
+    def _scale_statistics(self, mu1, sigma1, mu2, sigma2, alpha):
+            # Perform scaling operations directly on the precomputed mean and 
+            # covariance matrices, rather than scaling the conditioning embeddings 
+            # and recomputing mu and sigma
+
+            mu1, mu2 = np.copy(mu1), np.copy(mu2)
+            sigma1, sigma2 = np.copy(sigma1), np.copy(sigma2)
+
+            mu1[1024:] = mu1[1024:] * alpha
+            mu2[1024:] = mu2[1024:] * alpha
+
+            sigma1[1024:, 1024:] = sigma1[1024:, 1024:] * alpha**2
+            sigma1[1024:, :1024] = sigma1[1024:, :1024] * alpha
+            sigma1[:1024, 1024:] = sigma1[:1024, 1024:] * alpha
+
+            sigma2[1024:, 1024:] = sigma2[1024:, 1024:] * alpha**2
+            sigma2[1024:, :1024] = sigma2[1024:, :1024] * alpha
+            sigma2[:1024, 1024:] = sigma2[:1024, 1024:] * alpha
+
+            return mu1, sigma1, mu2, sigma2
+    
+    def _get_joint_statistics(self, image_embed, cond_embed):
+        if self.cuda:
+            joint_embed = torch.cat([image_embed, cond_embed], dim=1)
+        else:
+            joint_embed = np.concatenate([image_embed, cond_embed], axis=1)
+        mu, sigma = self.get_embedding_statistics(joint_embed)
+        return mu, sigma
+    
+    def get_embedding_statistics(self, embeddings):
+        mu = np.mean(embeddings, axis=0)
+        sigma = np.cov(embeddings, rowvar=False)
         return mu, sigma

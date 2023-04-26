@@ -16,10 +16,10 @@ from dataset.Displacement.DamageIdentification import DamageIdentificationDatase
 
 def create_dataloader(args):
     num_workers = min(os.cpu_count(), 4)
-    train_dataset = DamageIdentificationDataset(path="./Data", mode="train", classification=True if args.trainer == "classification" else False)
+    train_dataset = DamageIdentificationDataset(path="./Data", mode="train", classification=True if args.arch == "classification" else False)
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-    valid_dataset = DamageIdentificationDataset(path="./Data", mode="valid", classification=True if args.trainer == "classification" else False)
+    valid_dataset = DamageIdentificationDataset(path="./Data", mode="valid", classification=True if args.arch == "classification" else False)
     valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=False)
 
     return train_dataloader, valid_dataloader
@@ -51,7 +51,7 @@ def main(args):
         default_hp_metric = True)
     
     
-    if args.trainer == "classification":
+    if args.arch == "classification":
         # Save top-3 val loss models
         checkpoint_best_callback = ModelCheckpoint(
             save_top_k=1,
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
-    parser.add_argument('--arch', type=str,  default="regression", help = 'The file where trainer located')
+    parser.add_argument('--arch', type=str,  default="classification", help = 'The file where trainer located')
     parser.add_argument('--trainer', type=str,  default="CNN", help = 'The trainer we used')
 
     parser.add_argument('--load_model', type=str,  default="None", help = 'Model to load')

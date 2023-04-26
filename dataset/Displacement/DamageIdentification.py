@@ -44,6 +44,7 @@ class DamageIdentificationDataset(Dataset):
         self.train_path = os.path.join(self.path, "train")
         self.test_path = os.path.join(self.path, "test")
         self.mode = mode
+        self.classification = classification
 
         self.min_max = pd.read_csv(os.path.join(self.path, "min_max.csv")).values
         label_file = pd.read_csv(os.path.join(self.path, "label.csv"))
@@ -74,7 +75,7 @@ class DamageIdentificationDataset(Dataset):
                 valid_x = sliding_window(x[:, crop_range[1]:crop_range[2]], window=1024, stride=128)
                 test_x = sliding_window(x[:, crop_range[2]:crop_range[3]], window=1024, stride=128)
                 
-                if classification:
+                if self.classification:
                     label = one_hot(label)
 
 
@@ -121,7 +122,10 @@ class DamageIdentificationDataset(Dataset):
             input = torch.tensor(self.train_data[idx], dtype=torch.float32)
             signal_id = torch.tensor(self.train_id[idx], dtype=torch.float32)
             label = torch.tensor(self.train_label[idx], dtype=torch.float32)
-            return input, label, signal_id
+            if self.classification:
+                return input, label[0], label[1], label[2], signal_id
+            else:
+                return input, label, signal_id
 
             
         
@@ -129,13 +133,19 @@ class DamageIdentificationDataset(Dataset):
             input = torch.tensor(self.valid_data[idx], dtype=torch.float32)
             signal_id = torch.tensor(self.valid_id[idx], dtype=torch.float32)
             label = torch.tensor(self.valid_label[idx], dtype=torch.float32)
-            return input, label, signal_id
+            if self.classification:
+                return input, label[0], label[1], label[2], signal_id
+            else:
+                return input, label, signal_id
         
         elif self.mode == "test":
             input = torch.tensor(self.test_data[idx], dtype=torch.float32)
             signal_id = torch.tensor(self.test_id[idx], dtype=torch.float32)
             label = torch.tensor(self.test_label[idx], dtype=torch.float32)
-            return input, label, signal_id
+            if self.classification:
+                return input, label[0], label[1], label[2], signal_id
+            else:
+                return input, label, signal_id
 
         else:
             input = torch.tensor(self.evaluation_data[idx], dtype=torch.float32)
