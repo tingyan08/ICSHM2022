@@ -1,4 +1,4 @@
-from dataset.Displacement.SyntheticFinetune import SyntheticDataset
+from dataset.SyntheticFinetune import SyntheticDataset
 from torch.utils.data import DataLoader
 import numpy as np
 

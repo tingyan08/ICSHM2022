@@ -11,16 +11,16 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
-from dataset.Displacement.DamageIdentification import DamageIdentificationDataset
+from dataset.DataReconstruction import DataReconstructionDataset
 
 
-def create_dataloader(args):
+def create_dataloader(source):
     num_workers = min(os.cpu_count(), 4)
-    train_dataset = DamageIdentificationDataset(path="./Data", mode="train", classification=True if args.arch == "classification" else False)
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    train_dataset = DataReconstructionDataset(path="./Data", source=source, mode="train")
+    train_dataloader = DataLoader(train_dataset, batch_size=256, shuffle=True)
 
-    valid_dataset = DamageIdentificationDataset(path="./Data", mode="valid", classification=True if args.arch == "classification" else False)
-    valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=False)
+    valid_dataset = DataReconstructionDataset(path="./Data", source=source, mode="valid")
+    valid_dataloader = DataLoader(valid_dataset, batch_size=256, shuffle=False)
 
     return train_dataloader, valid_dataloader
 
@@ -30,16 +30,22 @@ def main(args):
 
 
     max_epochs = args.max_epoch
-    model = import_module(f'model.Displacement.{args.arch}').__dict__[args.trainer](load_model=args.load_model, transfer=args.transfer)
+    model = import_module(f'model.{args.arch}').__dict__[args.trainer](source=args.source, transfer=args.transfer, pretrain=args.pretrain)
 
     print("Total number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-    task = args.arch.split("_")[-1]
-
-    train_dataloader, valid_dataloader = create_dataloader(args)
+    train_dataloader, valid_dataloader = create_dataloader(args.source)
     
     #TensorBoard
-    save_dir = f"Logs/Identification/Displacement-{args.arch}"
+    if args.pretrain:
+        postfix = "Pretrain"
+    elif args.transfer:
+        postfix = "Transfer"
+    else:
+        postfix = "From_Scratch"
+
+
+    save_dir = f"Logs/Reconstruction/{args.source}-{postfix}"
 
     name = f"{args.description}/"
 
@@ -51,30 +57,20 @@ def main(args):
         default_hp_metric = True)
     
     
-    if args.arch == "classification":
-        # Save top-3 val loss models
-        checkpoint_best_callback = ModelCheckpoint(
-            save_top_k=1,
-            monitor="val_acc", 
-            mode="max",
-            filename="{epoch:05d}-{val_acc:.4f}"
-        )
-
-    else:
-        # Save top-3 val loss models
-        checkpoint_best_callback = ModelCheckpoint(
-            save_top_k=1,
-            monitor="val_loss", 
-            mode="min",
-            filename="{epoch:05d}-{val_loss:.4f}"
-        )
-
+    # Save top-3 val loss models
+    checkpoint_best_callback = ModelCheckpoint(
+        save_top_k=1,
+        monitor="val_loss", 
+        mode="min",
+        filename="{epoch:05d}-{val_loss:.4f}"
+    )
 
     # Save model at the middle epoch and last
     checkpoint_epoch_callback = ModelCheckpoint(
         every_n_epochs=int((max_epochs + 1)/2),
         filename="{epoch:05d}"
     )
+
 
     # training
     gpu = "gpu" if args.gpu else "cpu"
@@ -103,12 +99,13 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
-    parser.add_argument('--arch', type=str,  default="classification", help = 'The file where trainer located')
-    parser.add_argument('--trainer', type=str,  default="CNN", help = 'The trainer we used')
+    parser.add_argument('--arch', type=str,  default="reconstruction", help = 'The file where trainer located')
+    parser.add_argument('--trainer', type=str,  default="EncoderDecoder", help = 'The trainer we used')
+ 
+    parser.add_argument('--transfer', action="store_true", default=False, help = 'Transfer the encoder and freeze')
+    parser.add_argument('--pretrain', action="store_true", default=False, help = 'Initialize all the encoder and decoder')
 
-    parser.add_argument('--load_model', type=str,  default="None", help = 'Model to load')
-    parser.add_argument('--transfer', type=bool,  default=False, help = 'If load model is defined, transfer freeze the parameters')
-
+    parser.add_argument('--source', type=str,  default="Displacement", help="Displacement/Acceleration")
 
     parser.add_argument('--description', type=str, default="None", help = 'description of the experiment')
     parser.add_argument('--version', type=int, help = 'version')

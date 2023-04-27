@@ -12,7 +12,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
-from dataset.Displacement.SyntheticFinetune import SyntheticDataset
+from dataset.SyntheticFinetune import SyntheticDataset
 
 def get_all_condition():
     all_condition = []

@@ -18,7 +18,7 @@ from sklearn.manifold import TSNE
 
 from sklearn.model_selection import train_test_split
 
-from model.Displacement.extraction import AE, DamageAE, TripletAE
+from model.extraction import AE
 from scipy import linalg
 
 
@@ -27,8 +27,9 @@ from scipy import linalg
 
 
 class generator(nn.Module):
-    def __init__(self, input_dim=5, output_ch=5):
+    def __init__(self, with_mean, input_dim=5, output_ch=5):
         super(generator, self).__init__()
+        self.with_mean = with_mean
 
         self.encoder = nn.Sequential(
             nn.Conv1d(1, 16, 3, 1, 1),
@@ -85,7 +86,8 @@ class generator(nn.Module):
         x = self.linear(x)
         x = self.encoder(x)
         x = self.decoder(x)
-        x = x - torch.mean(x, axis=2).unsqueeze(-1).repeat(1, 1, 1024) + 0.5 * torch.ones_like(x).to("cuda")
+        if self.with_mean:
+            x = x - torch.mean(x, axis=2).unsqueeze(-1).repeat(1, 1, 1024) + 0.5 * torch.ones_like(x).to("cuda")
         return x
 
 
@@ -142,6 +144,7 @@ class discriminator(nn.Module):
 class WCGAN_GP(LightningModule):
 
     def __init__(self,
+                 with_mean,
                  input_ch=5,
                  output_ch=5,
                  gp_weight=10,
@@ -155,11 +158,11 @@ class WCGAN_GP(LightningModule):
 
         self.gp_weight = gp_weight
 
-        self.generator = generator()
+        self.generator = generator(with_mean)
         self.discriminator = discriminator(condition_length=self.condtion_length)
 
         self.AE = AE.load_from_checkpoint(
-            "./Logs/Extraction/Displacement-AE/LAST/version_0/checkpoints/epoch=00195-val_loss=0.00002329.ckpt").to(self.device)
+            "./Logs/Extraction/Displacement/LAST/version_0/checkpoints/epoch=00197-val_loss=0.00000553.ckpt").to(self.device)
         self.AE.eval()
         self.AE.freeze()
         self.feature_extractor = self.AE.encoder
@@ -203,7 +206,7 @@ class WCGAN_GP(LightningModule):
         return F.mse_loss(input, target)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        real_data, condition, situation = batch
+        real_data, condition = batch
 
         z = torch.rand((condition.shape[0], self.latent_dim)).to(self.device)
         # train generator
@@ -224,7 +227,7 @@ class WCGAN_GP(LightningModule):
             
             self.logger.experiment.add_scalar(f'Learning rate', self.optimizers()[0].param_groups[0]['lr'], self.current_epoch)
             return {"loss": g_loss,  "real_data": real_data, "generated_data": generated_data,\
-                    "input_latent":input_latent, "synthetic_latent":synthetic_latent, "condition": condition, "situation": situation}
+                    "input_latent":input_latent, "synthetic_latent":synthetic_latent, "condition": condition}
 
         # train discriminator
         if optimizer_idx == 1:
@@ -263,7 +266,6 @@ class WCGAN_GP(LightningModule):
         input_latent = []
         synthetic_latent = []
         condition = []
-        situation = []
         
         for step_result in training_step_outputs:
             G_loss.append(step_result[0]["loss"].cpu().detach().numpy())
@@ -275,7 +277,6 @@ class WCGAN_GP(LightningModule):
             input_latent.append(step_result[0]["input_latent"].cpu().detach().numpy())
             synthetic_latent.append(step_result[0]["synthetic_latent"].cpu().detach().numpy())
             condition.append(step_result[0]["condition"].cpu().detach().numpy())
-            situation.append(step_result[0]["situation"].cpu().detach().numpy())
             
         G_loss = np.concatenate([G_loss], axis=0)
         D_loss = np.concatenate([D_loss], axis=0)
@@ -291,7 +292,6 @@ class WCGAN_GP(LightningModule):
         input_latent = np.concatenate(input_latent, axis=0)
         synthetic_latent = np.concatenate(synthetic_latent, axis=0)
         condition = np.concatenate(condition, axis=0)
-        situation = np.concatenate(situation, axis=0)
 
         fid = self.calculate_fid(synthetic_latent, input_latent)
         self.log("FID", fid)
@@ -299,11 +299,6 @@ class WCGAN_GP(LightningModule):
         fjd = self.calculate_fjd(synthetic_latent, input_latent, condition, condition)
         self.log("FJD", fjd)
         self.logger.experiment.add_scalar(f'Train/Loss/FJD', fjd, self.current_epoch)
-
-        sample_synthetic_latent, sample_input_latent, sample_situation = self.sample(synthetic_latent, input_latent, situation, 0.3)
-
-        self.draw_tsne(sample_synthetic_latent, sample_input_latent, sample_situation)
-        self.draw_pca(sample_synthetic_latent, sample_input_latent, sample_situation)
 
 
     def sample(self, synthetic_latent, input_latent, situation, ratio):

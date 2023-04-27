@@ -15,8 +15,8 @@ import pandas as pd
 from scipy.special import softmax
 
 
-from model.Displacement.extraction import AE, DamageAE, TripletAE
-from ..utils import DoubleConv, Down, Up, OutConv
+from model.extraction import AE
+from model.utils import DoubleConv, Down, Up, OutConv
 
 
 
@@ -97,42 +97,29 @@ class Classifier(nn.Module):
 
 
 class CNN(LightningModule):
-    def __init__(self, load_model=None, transfer=False):
+    def __init__(self, transfer=False, pretrain=False):
         super(CNN, self).__init__()
-        if load_model != "None":
-            if load_model == "DamageAE":
-                self.model = DamageAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-DamageAE/LAST/version_0/checkpoints/epoch=00179-val_loss=0.00006632.ckpt").to(self.device)
-                if transfer:
-                    self.model.freeze()
-                self.model = self.model.encoder
+        if transfer :
+            self.AE = AE.load_from_checkpoint(
+                    "./Logs/Extraction/Displacement/LAST/version_0/checkpoints/epoch=00197-val_loss=0.00000553.ckpt").to(self.device)
+
                 
-            elif load_model == "TripletAE":
-                self.model = TripletAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-TripletAE/LAST/version_0/checkpoints/epoch=00184-val_loss=0.00032279.ckpt").to(self.device)
-                if transfer:
-                    self.model.freeze()
-                self.model = self.model.encoder
+            self.AE.freeze()
+            self.encoder = self.AE.encoder
 
-            elif load_model == "AE":
-                self.model = AE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-AE/LAST/version_0/checkpoints/epoch=00195-val_loss=0.00002329.ckpt").to(self.device)
-                if transfer:
-                    self.model.freeze()
-                self.model = self.model.encoder
-
-            else:
-                raise Exception("Pretrianed model is not applied")
-            
+        elif pretrain:
+            self.AE = AE.load_from_checkpoint(
+                    "./Logs/Extraction/Displacement/LAST/version_0/checkpoints/epoch=00197-val_loss=0.00000553.ckpt").to(self.device)
+            self.encoder = self.AE.encoder
 
         else:
-            self.model = Encoder()
+            self.encoder = Encoder()
         self.classifier = Classifier()
         self.save_hyperparameters()
         
 
     def forward(self, x):
-        x = self.model(x)
+        x = self.encoder(x)
         x = self.classifier(x[-1])
         return x
     
@@ -155,30 +142,25 @@ class CNN(LightningModule):
 
 
     def training_step(self, batch, batch_idx):
-        input, target, signal_id = batch
+        input, target = batch
         pred = self.forward(input)
         loss = nn.MSELoss()(pred, target)
 
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
 
-        return {"loss": loss , "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2], \
-                "signal_id":signal_id}
+        return {"loss": loss , "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2], }
     
     
-    def validation_step(self, batch, batch_idx):
-        input, target, signal_id = batch
+    def validation_step(self, batch, batch_idx):        
+        input, target = batch
         pred = self.forward(input)
         loss = nn.MSELoss()(pred, target)
 
-        return {"loss": loss, "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2], \
-                "signal_id":signal_id}
+        return {"loss": loss, "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2]}
 
 
     def training_epoch_end(self, training_step_outputs):
-        signal_id = [i["signal_id"].cpu().detach().numpy() for i in training_step_outputs]
-        signal_id = np.concatenate(signal_id)
-
         loss = np.array([i["loss"].detach().cpu() for i in training_step_outputs])
         self.logger.experiment.add_scalar(f'Train/Loss/Total', loss.mean(), self.current_epoch)
 
@@ -204,9 +186,6 @@ class CNN(LightningModule):
 
 
     def validation_epoch_end(self, valdiation_step_outputs):
-        signal_id = [i["signal_id"].cpu().numpy() for i in valdiation_step_outputs]
-        signal_id = np.concatenate(signal_id)
-
         loss = np.array([i["loss"].cpu() for i in valdiation_step_outputs])
         self.logger.experiment.add_scalar(f'Validation/Loss/Total', loss.mean(), self.current_epoch)
 

@@ -17,8 +17,8 @@ from pytorch_lightning import LightningModule
 import matplotlib.pyplot as plt
 
 
-from model.Displacement.extraction import AE, DamageAE, TripletAE
-from ..utils import DoubleConv, Down, Up, OutConv
+from model.extraction import AE
+from model.utils import DoubleConv, Down, Up, OutConv
 
 
 
@@ -81,38 +81,33 @@ class Decoder(nn.Module):
 
 class EncoderDecoder(LightningModule):
 
-    def __init__(self, load_model="None", transfer=False):
+    def __init__(self, source, transfer=False, pretrain=False):
         super().__init__()
-        if load_model != "None":
-            if load_model == "DamageAE":
-                self.encoder = DamageAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-DamageAE/stride_dataset/version_0/checkpoints/epoch=00198-val_loss=0.02024942.ckpt").to(self.device)
-                if transfer:
-                    self.encoder.freeze()
-                self.encoder = self.encoder.encoder
-                
-            elif load_model == "TripletAE":
-                self.encoder = TripletAE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-TripletAE/stride_dataset/version_0/checkpoints/epoch=00497-val_loss=0.00036773.ckpt").to(self.device)
-                if transfer:
-                    self.encoder.freeze()
-                self.encoder = self.encoder.encoder
-
-            elif load_model == "AE":
-                self.encoder = AE.load_from_checkpoint(
-                "./Logs/Extraction/Displacement-AE/stride_dataset/version_0/checkpoints/epoch=00495-val_loss=0.00010719.ckpt").to(self.device)
-                if transfer:
-                    self.encoder.freeze()
-                self.encoder = self.encoder.encoder
-
+        if transfer :
+            if source == "Displacement":
+                self.AE = AE.load_from_checkpoint(
+                    "./Logs/Extraction/Displacement/LAST/version_0/checkpoints/epoch=00197-val_loss=0.00000553.ckpt").to(self.device)
             else:
-                raise Exception("Pretrianed model is not applied")
-            
+                self.AE = AE.load_from_checkpoint(
+                    "./Logs/Extraction/Acceleration/LAST/version_0/checkpoints/epoch=00200-val_loss=0.00034191.ckpt").to(self.device)
+                
+            self.AE.freeze()
+            self.encoder = self.AE.encoder
+            self.decoder = Decoder()
+
+        elif pretrain:
+            if source == "Displacement":
+                self.AE = AE.load_from_checkpoint(
+                    "./Logs/Extraction/Displacement/LAST/version_0/checkpoints/epoch=00197-val_loss=0.00000553.ckpt").to(self.device)
+            else:
+                self.AE = AE.load_from_checkpoint(
+                    "./Logs/Extraction/Acceleration/LAST/version_0/checkpoints/epoch=00200-val_loss=0.00034191.ckpt").to(self.device)
+            self.encoder = self.AE.encoder
+            self.decoder = self.AE.decoder
 
         else:
             self.encoder = Encoder()
-
-        self.decoder = Decoder()
+            self.decoder = Decoder()
 
 
     def forward(self, X):
@@ -120,24 +115,6 @@ class EncoderDecoder(LightningModule):
         reconstruct = self.decoder(latents)
         return reconstruct
 
-    
-    def reconstruction_loss(self, 
-                           anchor_signal, positive_signal, negative_signal,
-                           anchor_reconstruct, positive_reconstruct, negative_reconstruct):
-        mse = nn.MSELoss()
-        mse_anchor = mse(anchor_signal, anchor_reconstruct)
-        mse_positive = mse(positive_signal, positive_reconstruct)
-        mse_negative = mse(negative_signal, negative_reconstruct)
-        return mse_anchor + mse_positive + mse_negative
-    
-    def loss_func(self, 
-                  anchor_signal, positive_signal, negative_signal,
-                  anchor_reconstruct, positive_reconstruct, negative_reconstruct):
-        
-        mse_loss = self.reconstruction_loss(anchor_signal, positive_signal, negative_signal,
-                  anchor_reconstruct, positive_reconstruct, negative_reconstruct)
-
-        return mse_loss
 
     def training_step(self, batch, batch_idx):
         masked_signal, target_signal = batch
@@ -149,7 +126,8 @@ class EncoderDecoder(LightningModule):
         loss =  mse_loss
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
-        return {"loss": loss, "mse_loss": mse_loss}
+        return {"loss": loss, "mse_loss": mse_loss, \
+                "masked_signal": masked_signal, "prediction": prediction, "target_signal":target_signal}
 
     def validation_step(self, batch, batch_idx):
         masked_signal, target_signal = batch
@@ -168,7 +146,7 @@ class EncoderDecoder(LightningModule):
         
 
     def configure_optimizers(self):
-        lr = 5E-5
+        lr = 5E-4
 
         opt = torch.optim.Adam(self.parameters(), lr=lr)
         return [opt], []
@@ -179,15 +157,33 @@ class EncoderDecoder(LightningModule):
         loss = []
         mse_loss = []
 
+        masked_signal = []
+        prediction = []
+        target_signal = []
+
         for step_result in training_step_outputs:
             loss.append(step_result["loss"].cpu().detach().numpy())
             mse_loss.append(step_result["mse_loss"].cpu().detach().numpy())
+
+            masked_signal.append(step_result["masked_signal"].cpu().detach().numpy())
+            prediction.append(step_result["prediction"].cpu().detach().numpy())
+            target_signal.append(step_result["target_signal"].cpu().detach().numpy())
             
         loss = np.concatenate([loss], axis=0)
         mse_loss = np.concatenate([mse_loss], axis=0)
 
         self.logger.experiment.add_scalar(f'Train/Loss/Loss', loss.mean(), self.current_epoch)
         self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
+
+        masked_signal = np.concatenate(masked_signal, axis=0)
+        prediction = np.concatenate(prediction, axis=0)
+        target_signal = np.concatenate(target_signal, axis=0)
+
+        min_max = self.trainer.val_dataloaders[0].dataset.min_max
+        prediction, target_signal = self.denormalize(prediction, target_signal, min_max)
+
+        self.visualize_masked_process_reconstructions(masked_signal, prediction, target_signal, "A", "Validation")
+        self.visualize_masked_process_reconstructions(masked_signal, prediction, target_signal, "B", "Validation")
 
 
     def validation_epoch_end(self, validation_step_outputs):

@@ -2,6 +2,7 @@ __pycache__/
 err.txt
 out.txt
 /Logs
+/temp_Logs
 *.svg
 /pic
 /prediction

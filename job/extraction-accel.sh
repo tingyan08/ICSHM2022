@@ -11,4 +11,4 @@ conda activate icshm
 
 module load cuda-11.7			
 
-python3 train_acceleration_extraction.py --arch extraction --trainer AE --max_epoch 200 --description LAST
+python3 train_extraction.py --arch extraction --trainer AE --source Acceleration --max_epoch 200 --description LAST

@@ -11,16 +11,11 @@ from torch.autograd import grad as torch_grad
 import numpy as np
 import pandas as pd
 
-from timm.scheduler.cosine_lr import CosineLRScheduler
 
 from pytorch_lightning import LightningModule
 import matplotlib.pyplot as plt
 
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-
-from scipy.special import softmax
-from ..utils import DoubleConv, Down, Up, OutConv
+from model.utils import DoubleConv, Down, Up, OutConv
 
 
 
@@ -96,24 +91,6 @@ class AE(LightningModule):
         reconstruct = self.decoder(latent)
         return reconstruct, latent[-1]
 
-    
-    def reconstruction_loss(self, 
-                           anchor_signal, positive_signal, negative_signal,
-                           anchor_reconstruct, positive_reconstruct, negative_reconstruct):
-        mse = nn.MSELoss()
-        mse_anchor = mse(anchor_signal, anchor_reconstruct)
-        mse_positive = mse(positive_signal, positive_reconstruct)
-        mse_negative = mse(negative_signal, negative_reconstruct)
-        return mse_anchor + mse_positive + mse_negative
-    
-    def loss_func(self, 
-                  anchor_signal, positive_signal, negative_signal,
-                  anchor_reconstruct, positive_reconstruct, negative_reconstruct):
-        
-        mse_loss = self.reconstruction_loss(anchor_signal, positive_signal, negative_signal,
-                  anchor_reconstruct, positive_reconstruct, negative_reconstruct)
-
-        return mse_loss
 
     def training_step(self, batch, batch_idx):
         signal = batch
@@ -126,7 +103,7 @@ class AE(LightningModule):
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
         return {"loss": loss, "mse_loss": mse_loss, \
-                "anchor_reconstruct": reconstructed_signal, "anchor_signal":signal}
+                "reconstructed_signal": reconstructed_signal, "signal":signal}
     
     def validation_step(self, batch, batch_idx):
         signal = batch
@@ -141,12 +118,12 @@ class AE(LightningModule):
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
         return {"loss": loss, "mse_loss": mse_loss, \
-                "anchor_reconstruct": reconstructed_signal, "anchor_signal":signal}
+                "reconstructed_signal": reconstructed_signal, "signal":signal}
 
         
 
     def configure_optimizers(self):
-        lr = 5E-5
+        lr = 5E-4
 
         opt = torch.optim.Adam(self.parameters(), lr=lr)
         return [opt], []
@@ -157,16 +134,16 @@ class AE(LightningModule):
         loss = []
         mse_loss = []
 
-        anchor_reconstruct = []
-        anchor_signal = []
+        reconstructed_signal = []
+        signal = []
 
         for step_result in training_step_outputs:
             loss.append(step_result["loss"].cpu().detach().numpy())
             mse_loss.append(step_result["mse_loss"].cpu().detach().numpy())
 
 
-            anchor_reconstruct.append(step_result["anchor_reconstruct"].cpu().detach().numpy())
-            anchor_signal.append(step_result["anchor_signal"].cpu().detach().numpy())
+            reconstructed_signal.append(step_result["reconstructed_signal"].cpu().detach().numpy())
+            signal.append(step_result["signal"].cpu().detach().numpy())
 
 
             
@@ -177,28 +154,28 @@ class AE(LightningModule):
         self.logger.experiment.add_scalar(f'Train/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
     
-        anchor_reconstruct = np.concatenate(anchor_reconstruct, axis=0)
-        anchor_signal = np.concatenate(anchor_signal, axis=0)
+        reconstructed_signal = np.concatenate(reconstructed_signal, axis=0)
+        signal = np.concatenate(signal, axis=0)
 
         min_max = self.trainer.train_dataloader.dataset.datasets.min_max
-        anchor_signal, anchor_reconstruct = self.denormalize(anchor_signal, anchor_reconstruct, min_max)
+        signal, reconstructed_signal = self.denormalize(signal, reconstructed_signal, min_max)
 
-        self.visualize(anchor_signal[-1], anchor_reconstruct[-1], "Train")
+        self.visualize(signal[-1], reconstructed_signal[-1], "Train")
 
     def validation_epoch_end(self, validation_step_outputs):
         loss = []
         mse_loss = []
 
-        anchor_reconstruct = []
-        anchor_signal = []
+        reconstructed_signal = []
+        signal = []
 
         for step_result in validation_step_outputs:
             loss.append(step_result["loss"].cpu().detach().numpy())
             mse_loss.append(step_result["mse_loss"].cpu().detach().numpy())
 
 
-            anchor_reconstruct.append(step_result["anchor_reconstruct"].cpu().detach().numpy())
-            anchor_signal.append(step_result["anchor_signal"].cpu().detach().numpy())
+            reconstructed_signal.append(step_result["reconstructed_signal"].cpu().detach().numpy())
+            signal.append(step_result["signal"].cpu().detach().numpy())
 
 
             
@@ -209,16 +186,13 @@ class AE(LightningModule):
         self.logger.experiment.add_scalar(f'Validation/Loss/MSE Loss', mse_loss.mean(), self.current_epoch)
 
     
-        anchor_reconstruct = np.concatenate(anchor_reconstruct, axis=0)
-        anchor_signal = np.concatenate(anchor_signal, axis=0)
+        reconstructed_signal = np.concatenate(reconstructed_signal, axis=0)
+        signal = np.concatenate(signal, axis=0)
 
         min_max = self.trainer.val_dataloaders[0].dataset.min_max
-        anchor_signal, anchor_reconstruct = self.denormalize(anchor_signal, anchor_reconstruct, min_max)
+        signal, reconstructed_signal = self.denormalize(signal, reconstructed_signal, min_max)
 
-        self.visualize(anchor_signal[-1], anchor_reconstruct[-1], "Validation")
-
-    
-    
+        self.visualize(signal[-1], reconstructed_signal[-1], "Validation")
 
 
     def visualize(self, signal, reonstructed_signal, mode):
