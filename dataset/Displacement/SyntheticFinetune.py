@@ -74,23 +74,23 @@ class SyntheticDataset(Dataset):
 
         if real_involve:
             for situation, signal_name in enumerate(sorted(os.listdir(os.path.join(self.path, "train")))):
-                name, _, _ = scipy.io.whosmat(os.path.join(self.path, "train", signal_name))[0]
-                x = scipy.io.loadmat(os.path.join(self.path, "train", signal_name))[name]
-                x = min_max_scaler(x, self.min_max)
-                label = label_file.loc[label_file['File Name'] == signal_name].values[0, 1:4].astype(float)
-                sliding_signal = sliding_window(x, window=1024, stride=128)
-                length = x.shape[1]
-                crop_range = [0, int(0.7 * length), int(0.9 * length), int(length)]
-                train_x = sliding_window(x[:, crop_range[0]:crop_range[1]], window=1024, stride=128)
-                valid_x = sliding_window(x[:, crop_range[1]:crop_range[2]], window=1024, stride=128)
-                test_x = sliding_window(x[:, crop_range[2]:crop_range[3]], window=1024, stride=128)
+                if situation != 10:
+                    name, _, _ = scipy.io.whosmat(os.path.join(self.path, "train", signal_name))[0]
+                    x = scipy.io.loadmat(os.path.join(self.path, "train", signal_name))[name]
+                    x = min_max_scaler(x, self.min_max)
+                    label = label_file.loc[label_file['File Name'] == signal_name].values[0, 1:4].astype(float)
+                    length = x.shape[1]
+                    crop_range = [0, int(0.7 * length), int(0.9 * length), int(length)]
+                    train_x = sliding_window(x[:, crop_range[0]:crop_range[1]], window=1024, stride=128)
+                    valid_x = sliding_window(x[:, crop_range[1]:crop_range[2]], window=1024, stride=128)
+                    test_x = sliding_window(x[:, crop_range[2]:crop_range[3]], window=1024, stride=128)
 
-                self.train_data.append(np.concatenate([train_x]))
-                self.train_label += [label for _ in range(len(train_x))]
-                self.valid_data.append(np.concatenate([valid_x]))
-                self.valid_label += [label for _ in range(len(valid_x))]
-                self.test_data.append(np.concatenate([test_x]))
-                self.test_label += [label for _ in range(len(test_x))]
+                    self.train_data.append(np.concatenate([train_x]))
+                    self.train_label += [label for _ in range(len(train_x))]
+                    self.valid_data.append(np.concatenate([valid_x]))
+                    self.valid_label += [label for _ in range(len(valid_x))]
+                    self.test_data.append(np.concatenate([test_x]))
+                    self.test_label += [label for _ in range(len(test_x))]
 
 
         self.train_data = np.concatenate(self.train_data)
