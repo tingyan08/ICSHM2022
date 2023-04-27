@@ -6,3 +6,5 @@ out.txt
 *.svg
 /pic
 /prediction
+/Data
+epoch=00343-val_loss=0.0000.ckpt

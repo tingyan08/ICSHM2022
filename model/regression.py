@@ -100,45 +100,45 @@ class CNN(LightningModule):
     def __init__(self, transfer=False, pretrain=False):
         super(CNN, self).__init__()
         if transfer :
-            self.AE = AE.load_from_checkpoint(
+            self.model = AE.load_from_checkpoint(
                     "./Logs/Extraction/Displacement/LAST/version_0/checkpoints/epoch=00197-val_loss=0.00000553.ckpt").to(self.device)
 
                 
-            self.AE.freeze()
-            self.encoder = self.AE.encoder
+            self.model.freeze()
+            self.model = self.model.encoder
 
         elif pretrain:
-            self.AE = AE.load_from_checkpoint(
+            self.model = AE.load_from_checkpoint(
                     "./Logs/Extraction/Displacement/LAST/version_0/checkpoints/epoch=00197-val_loss=0.00000553.ckpt").to(self.device)
-            self.encoder = self.AE.encoder
+            self.model = self.model.encoder
 
         else:
-            self.encoder = Encoder()
+            self.model = Encoder()
         self.classifier = Classifier()
         self.save_hyperparameters()
         
 
     def forward(self, x):
-        x = self.encoder(x)
+        x = self.model(x)
         x = self.classifier(x[-1])
         return x
     
-    # def configure_optimizers(self):
-    #     optimizer = optim.Adam(self.parameters(), lr=1e-5, betas=[0.9, 0.999])
-    #     return [optimizer], []
-    
-    
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-4, betas=[0.9, 0.999])
-        # scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
-        #                               warmup_t=int(self.trainer.max_epochs/10), warmup_lr_init=5e-6, warmup_prefix=True)
-        scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
-                                      warmup_t=0, warmup_lr_init=5e-6, warmup_prefix=True)
-        return [optimizer], [scheduler]
+        return [optimizer], []
     
-    def lr_scheduler_step(self, scheduler, optimizer_idx, metric):
-        scheduler.step(epoch=self.current_epoch)  # timm's scheduler need the epoch value
-        self.logger.experiment.add_scalar(f'Learning rate', scheduler.optimizer.param_groups[0]['lr'], self.current_epoch)
+    
+    # def configure_optimizers(self):
+    #     optimizer = optim.Adam(self.parameters(), lr=1e-4, betas=[0.9, 0.999])
+    #     # scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
+    #     #                               warmup_t=int(self.trainer.max_epochs/10), warmup_lr_init=5e-6, warmup_prefix=True)
+    #     scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
+    #                                   warmup_t=0, warmup_lr_init=5e-6, warmup_prefix=True)
+    #     return [optimizer], [scheduler]
+    
+    # def lr_scheduler_step(self, scheduler, optimizer_idx, metric):
+    #     scheduler.step(epoch=self.current_epoch)  # timm's scheduler need the epoch value
+    #     self.logger.experiment.add_scalar(f'Learning rate', scheduler.optimizer.param_groups[0]['lr'], self.current_epoch)
 
 
     def training_step(self, batch, batch_idx):
@@ -149,7 +149,7 @@ class CNN(LightningModule):
         
         self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
 
-        return {"loss": loss , "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2], }
+        return {"loss": loss , "pred1":pred[:, 0], "pred2":pred[:, 1], "pred3": pred[:, 2], "target1":target[:, 0], "target2": target[:, 1], "target3":target[:, 2]}
     
     
     def validation_step(self, batch, batch_idx):        
@@ -157,7 +157,7 @@ class CNN(LightningModule):
         pred = self.forward(input)
         loss = nn.MSELoss()(pred, target)
 
-        return {"loss": loss, "pred1":pred[0], "pred2":pred[1], "pred3": pred[2], "target1":target[0], "target2": target[1], "target3":target[2]}
+        return {"loss": loss, "pred1":pred[:, 0], "pred2":pred[:, 1], "pred3": pred[:, 2], "target1":target[:, 0], "target2": target[:, 1], "target3":target[:, 2]}
 
 
     def training_epoch_end(self, training_step_outputs):
@@ -227,7 +227,7 @@ class CNN(LightningModule):
 
 
 class CNN_FineTune(LightningModule):
-    def __init__(self, checkpoint="./Logs/Identification/Displacement-regression/From_scratch/version_2/checkpoints/epoch=00343-val_loss=0.0000.ckpt"):
+    def __init__(self, checkpoint="./epoch=00343-val_loss=0.0000.ckpt"):
         super(CNN_FineTune, self).__init__()
         self.model = CNN.load_from_checkpoint(checkpoint)
         self.save_hyperparameters()

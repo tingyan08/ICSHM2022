@@ -94,7 +94,7 @@ if __name__ == "__main__":
     parser.add_argument('--arch', type=str,  default="generation", help = 'The file where trainer located')
     parser.add_argument('--trainer', type=str,  default="WCGAN_GP", help = 'The trainer we used')
 
-    parser.add_argument('--mean_constraint', action="store_true", default=True, help = 'Whether to apply the mean constraint')
+    parser.add_argument('--mean_constraint', action="store_true", default=False, help = 'Whether to apply the mean constraint')
 
     parser.add_argument('--description', type=str, default="None", help = 'description of the experiment')
     parser.add_argument('--version', type=int, help = 'version')

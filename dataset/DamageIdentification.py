@@ -11,20 +11,6 @@ def min_max_scaler(signal, min_max):
         new_signal[i, :] = (signal[i, :] - min_max[i][0])/(min_max[i][1] - min_max[i][0])
     return new_signal
 
-
-def one_hot(label):
-    no7 = np.zeros(6)
-    no22 = np.zeros(6)
-    no38 = np.zeros(6)
-    # No.7
-    no7[int(label[0]*10)] = 1
-    # No.22
-    no22[int(label[1]*10)] = 1
-    # No.38
-    no38[int(label[2]*10)] = 1
-
-    return no7, no22, no38
-
 class DamageIdentificationDataset(Dataset):
     def __init__(self, path, source, mode="train") -> None:
         self.root = os.path.join(path, source)

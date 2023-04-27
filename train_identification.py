@@ -17,10 +17,10 @@ from dataset.DamageIdentification import DamageIdentificationDataset
 def create_dataloader(source):
     num_workers = min(os.cpu_count(), 4)
     train_dataset = DamageIdentificationDataset(path="./Data", source = source, mode="train")
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=256, shuffle=True)
 
     valid_dataset = DamageIdentificationDataset(path="./Data", source = source, mode="valid")
-    valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=False)
+    valid_dataloader = DataLoader(valid_dataset, batch_size=256, shuffle=False)
 
     return train_dataloader, valid_dataloader
 
@@ -30,7 +30,7 @@ def main(args):
 
 
     max_epochs = args.max_epoch
-    model = import_module(f'model.{args.arch}').__dict__[args.trainer](transfer=args.transfer, pretrain=args.pretrain)
+    model = import_module(f'model.{args.arch}').__dict__[args.trainer]()
 
     print("Total number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
     parser.add_argument('--arch', type=str,  default="regression", help = 'The file where trainer located')
-    parser.add_argument('--trainer', type=str,  default="CNN", help = 'The trainer we used')
+    parser.add_argument('--trainer', type=str,  default="CNN_FineTune", help = 'The trainer we used')
 
     parser.add_argument('--transfer', action="store_true", default=False, help = 'Transfer the encoder and freeze')
     parser.add_argument('--pretrain', action="store_true", default=False, help = 'Initialize all the encoder and decoder')

@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l select=1:ncpus=4:gpu_id=1
+#PBS -l select=1:ncpus=4:gpu_id=2
 ###PBS -l place=excl
 #PBS -o out.txt				
 #PBS -e err.txt				
@@ -13,4 +13,5 @@ module load cuda-11.7
 
 
 
-python3 train_generation.py --arch generation --trainer WCGAN_GP --mean_constraint --max_epoch 200 --description LAST
+# python3 train_generation.py --arch generation --trainer WCGAN_GP --mean_constraint --max_epoch 200 --description LAST
+python3 train_generation.py --arch generation --trainer WCGAN_GP  --max_epoch 200 --description LAST
