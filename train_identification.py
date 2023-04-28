@@ -27,16 +27,12 @@ def create_dataloader(source):
 
 
 def main(args):
-
+    train_dataloader, valid_dataloader = create_dataloader(source=args.source)
+    sample_length = train_dataloader.dataset[0][0].shape[-1]
 
     max_epochs = args.max_epoch
-    model = import_module(f'model.{args.arch}').__dict__[args.trainer]()
-
+    model = import_module(f'model.{args.arch}').__dict__[args.trainer](length = sample_length)
     print("Total number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
-
-
-
-    train_dataloader, valid_dataloader = create_dataloader(source="Displacement")
     
     #TensorBoard
     if args.pretrain:
@@ -47,7 +43,7 @@ def main(args):
         postfix = "From_Scratch"
 
     #TensorBoard
-    save_dir = f"Logs/Identification/Displacement-{postfix}"
+    save_dir = f"Logs/Identification/{args.source}-{postfix}"
 
     name = f"{args.description}/"
 
@@ -112,11 +108,12 @@ if __name__ == "__main__":
     parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
 
     parser.add_argument('--arch', type=str,  default="regression", help = 'The file where trainer located')
-    parser.add_argument('--trainer', type=str,  default="CNN_FineTune", help = 'The trainer we used')
+    parser.add_argument('--trainer', type=str,  default="CNN", help = 'The trainer we used')
 
     parser.add_argument('--transfer', action="store_true", default=False, help = 'Transfer the encoder and freeze')
     parser.add_argument('--pretrain', action="store_true", default=False, help = 'Initialize all the encoder and decoder')
 
+    parser.add_argument("--source", type=str, default="Displacement(16384)", help = 'The source of dataset.')
 
     parser.add_argument('--description', type=str, default="None", help = 'description of the experiment')
     parser.add_argument('--version', type=int, help = 'version')

@@ -21,7 +21,7 @@ from model.utils import DoubleConv, Down, Up, OutConv
 
 
 class Encoder(nn.Module):
-    def __init__(self, bilinear = False):
+    def __init__(self, length, bilinear = False):
         super(Encoder, self).__init__()
         self.input_conv = nn.Sequential(
             nn.Conv1d(5, 16, 3, 1, 1),
@@ -33,7 +33,7 @@ class Encoder(nn.Module):
         self.down4 = (Down(128, 256) )
         self.down5 = (Down(256, 512) )
         self.down6 = (Down(512, 1024) )
-        self.linear = nn.Linear(16, 1)
+        self.linear = nn.Linear(length // 64, 1)
 
 
     def forward(self, x):
@@ -48,34 +48,6 @@ class Encoder(nn.Module):
         x7 = self.linear(x7)
         return x1, x2, x3, x4, x5, x6, x7
     
-class Decoder(nn.Module):
-    def __init__(self, bilinear = False):
-        super(Decoder, self).__init__()
-        self.linear = nn.Linear(1, 16)
-        factor = 2 if bilinear else 1
-        self.up1 = (Up(1024, 512 // factor, bilinear))
-        self.up2 = (Up(512, 256 // factor, bilinear))
-        self.up3 = (Up(256, 128 // factor, bilinear))
-        self.up4 = (Up(128, 64, bilinear))
-        self.up5 = (Up(64, 32, bilinear))
-        self.up6 = (Up(32, 16, bilinear))
-        self.outc = (OutConv(16, 16))
-        self.output_conv = nn.Sequential(
-            nn.Conv1d(16, 5, 3, 1, 1), 
-        )
-
-    def forward(self, latents):
-        x1, x2, x3, x4, x5, x6, x7 = latents
-        x7 = self.linear(x7)
-        x = self.up1(x7, x6)
-        x = self.up2(x, x5)
-        x = self.up3(x, x4)
-        x = self.up4(x, x3)
-        x = self.up5(x, x2)
-        x = self.up6(x, x1)
-        x = self.outc(x)
-        logits = self.output_conv(x)
-        return logits
 
 class Classifier(nn.Module):
     def __init__(self):
@@ -97,23 +69,9 @@ class Classifier(nn.Module):
 
 
 class CNN(LightningModule):
-    def __init__(self, transfer=False, pretrain=False):
+    def __init__(self, length=16384):
         super(CNN, self).__init__()
-        if transfer :
-            self.model = AE.load_from_checkpoint(
-                    "./Logs/Extraction/Displacement/LAST/version_0/checkpoints/epoch=00197-val_loss=0.00000553.ckpt").to(self.device)
-
-                
-            self.model.freeze()
-            self.model = self.model.encoder
-
-        elif pretrain:
-            self.model = AE.load_from_checkpoint(
-                    "./Logs/Extraction/Displacement/LAST/version_0/checkpoints/epoch=00197-val_loss=0.00000553.ckpt").to(self.device)
-            self.model = self.model.encoder
-
-        else:
-            self.model = Encoder()
+        self.model = Encoder(length=16384)
         self.classifier = Classifier()
         self.save_hyperparameters()
         
