@@ -14,12 +14,12 @@ from torch.utils.data import DataLoader
 from dataset.DamageIdentification import DamageIdentificationDataset
 
 
-def create_dataloader(source):
+def create_dataloader(classification, source):
     num_workers = min(os.cpu_count(), 4)
-    train_dataset = DamageIdentificationDataset(path="./Data", source = source, mode="train")
+    train_dataset = DamageIdentificationDataset(path="./Data", source = source, mode="train", classification=classification)
     train_dataloader = DataLoader(train_dataset, batch_size=256, shuffle=True)
 
-    valid_dataset = DamageIdentificationDataset(path="./Data", source = source, mode="valid")
+    valid_dataset = DamageIdentificationDataset(path="./Data", source = source, mode="valid", classification=classification)
     valid_dataloader = DataLoader(valid_dataset, batch_size=256, shuffle=False)
 
     return train_dataloader, valid_dataloader
@@ -27,23 +27,20 @@ def create_dataloader(source):
 
 
 def main(args):
-    train_dataloader, valid_dataloader = create_dataloader(source=args.source)
+    classification = True if args.arch == "classification" else False
+    train_dataloader, valid_dataloader = create_dataloader(source=args.source, classification=classification)
     sample_length = train_dataloader.dataset[0][0].shape[-1]
 
     max_epochs = args.max_epoch
-    model = import_module(f'model.{args.arch}').__dict__[args.trainer](length = sample_length)
+    model = import_module(f'model.{args.arch}').__dict__[args.trainer]()
     print("Total number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
     
-    #TensorBoard
-    if args.pretrain:
-        postfix = "Pretrain"
-    elif args.transfer:
-        postfix = "Transfer"
-    else:
-        postfix = "From_Scratch"
 
+    source = ""
+    for i in args.source:
+        source += f"{i}-"
     #TensorBoard
-    save_dir = f"Logs/Identification/{args.source}-{postfix}"
+    save_dir = f"Logs/Identification/{args.arch}-{source}{args.trainer}"
 
     name = f"{args.description}/"
 
@@ -105,15 +102,15 @@ if __name__ == "__main__":
 
     parser.add_argument('--gpu', type=bool, default=True, help = 'Whether use GPU training')
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
-    parser.add_argument('--max_epoch', type=int, default=1000, help = 'Maximun epochs')
+    parser.add_argument('--max_epoch', type=int, default=200, help = 'Maximun epochs')
 
     parser.add_argument('--arch', type=str,  default="regression", help = 'The file where trainer located')
-    parser.add_argument('--trainer', type=str,  default="CNN", help = 'The trainer we used')
+    parser.add_argument('--trainer', type=str,  default="ResNet18", help = 'The trainer we used')
 
     parser.add_argument('--transfer', action="store_true", default=False, help = 'Transfer the encoder and freeze')
     parser.add_argument('--pretrain', action="store_true", default=False, help = 'Initialize all the encoder and decoder')
 
-    parser.add_argument("--source", type=str, default="Displacement(16384)", help = 'The source of dataset.')
+    parser.add_argument("--source", type=str, default=["Displacement", "synthetic"], nargs="+", help = 'The source of dataset.')
 
     parser.add_argument('--description', type=str, default="None", help = 'description of the experiment')
     parser.add_argument('--version', type=int, help = 'version')

@@ -14,9 +14,9 @@ from torch.utils.data import DataLoader
 from dataset.DataGeneration import DamageDataGenerationDataset
 
 
-def create_dataloader():
+def create_dataloader(source):
     num_workers = min(os.cpu_count(), 4)
-    train_dataset = DamageDataGenerationDataset(path="./Data")
+    train_dataset = DamageDataGenerationDataset(path="./Data", source=source)
     train_dataloader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=num_workers) 
 
     return train_dataloader
@@ -31,7 +31,7 @@ def main(args):
 
     print(f"Total number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)/1024/1024:.4f} MB", )
 
-    train_dataloader = create_dataloader()
+    train_dataloader = create_dataloader(args.source)
     
     if args.mean_constraint:
         postfix = "mean_constraint"
@@ -93,6 +93,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--arch', type=str,  default="generation", help = 'The file where trainer located')
     parser.add_argument('--trainer', type=str,  default="WCGAN_GP", help = 'The trainer we used')
+
+    parser.add_argument("--source", type=str, default="Displacement(16384)", help = 'The source of dataset.')
 
     parser.add_argument('--mean_constraint', action="store_true", default=False, help = 'Whether to apply the mean constraint')
 

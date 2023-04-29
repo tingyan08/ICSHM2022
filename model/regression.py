@@ -16,8 +16,7 @@ from scipy.special import softmax
 
 
 from model.extraction import AE
-from model.utils import DoubleConv, Down, Up, OutConv
-
+from model.utils import DoubleConv, Down, Bottleneck, ResNet
 
 
 class Encoder(nn.Module):
@@ -71,7 +70,7 @@ class Classifier(nn.Module):
 class CNN(LightningModule):
     def __init__(self, length=16384):
         super(CNN, self).__init__()
-        self.model = Encoder(length=16384)
+        self.model = Encoder(length=length)
         self.classifier = Classifier()
         self.save_hyperparameters()
         
@@ -79,6 +78,119 @@ class CNN(LightningModule):
     def forward(self, x):
         x = self.model(x)
         x = self.classifier(x[-1])
+        return x
+    
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=1e-4, betas=[0.9, 0.999])
+        return [optimizer], []
+    
+    
+    # def configure_optimizers(self):
+    #     optimizer = optim.Adam(self.parameters(), lr=1e-4, betas=[0.9, 0.999])
+    #     # scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
+    #     #                               warmup_t=int(self.trainer.max_epochs/10), warmup_lr_init=5e-6, warmup_prefix=True)
+    #     scheduler = CosineLRScheduler(optimizer, t_initial=self.trainer.max_epochs, \
+    #                                   warmup_t=0, warmup_lr_init=5e-6, warmup_prefix=True)
+    #     return [optimizer], [scheduler]
+    
+    # def lr_scheduler_step(self, scheduler, optimizer_idx, metric):
+    #     scheduler.step(epoch=self.current_epoch)  # timm's scheduler need the epoch value
+    #     self.logger.experiment.add_scalar(f'Learning rate', scheduler.optimizer.param_groups[0]['lr'], self.current_epoch)
+
+
+    def training_step(self, batch, batch_idx):
+        input, target = batch
+        pred = self.forward(input)
+        loss = nn.MSELoss()(pred, target)
+
+        
+        self.logger.experiment.add_scalar(f'Learning rate', self.optimizers().param_groups[0]['lr'], self.current_epoch)
+
+        return {"loss": loss , "pred1":pred[:, 0], "pred2":pred[:, 1], "pred3": pred[:, 2], "target1":target[:, 0], "target2": target[:, 1], "target3":target[:, 2]}
+    
+    
+    def validation_step(self, batch, batch_idx):        
+        input, target = batch
+        pred = self.forward(input)
+        loss = nn.MSELoss()(pred, target)
+
+        return {"loss": loss, "pred1":pred[:, 0], "pred2":pred[:, 1], "pred3": pred[:, 2], "target1":target[:, 0], "target2": target[:, 1], "target3":target[:, 2]}
+
+
+    def training_epoch_end(self, training_step_outputs):
+        loss = np.array([i["loss"].detach().cpu() for i in training_step_outputs])
+        self.logger.experiment.add_scalar(f'Train/Loss/Total', loss.mean(), self.current_epoch)
+
+
+
+        pred_no7 = [i["pred1"].detach().cpu().numpy() for i in training_step_outputs]
+        pred_no7 = np.concatenate(pred_no7)
+        target_no7 = [i["target1"].detach().cpu().numpy() for i in training_step_outputs]
+        target_no7 = np.concatenate(target_no7)
+
+        pred_no22 = [i["pred2"].detach().cpu().numpy() for i in training_step_outputs]
+        pred_no22 = np.concatenate(pred_no22)
+        target_no22 = [i["target2"].detach().cpu().numpy() for i in training_step_outputs]
+        target_no22 = np.concatenate(target_no22)
+
+        pred_no38 = [i["pred3"].detach().cpu().numpy() for i in training_step_outputs]
+        pred_no38 = np.concatenate(pred_no38)
+        target_no38 = [i["target3"].detach().cpu().numpy() for i in training_step_outputs]
+        target_no38 = np.concatenate(target_no38)
+
+        self.display_prediction(pred_no7, pred_no22, pred_no38, target_no7, target_no22, target_no38, "Train")
+
+
+
+    def validation_epoch_end(self, valdiation_step_outputs):
+        loss = np.array([i["loss"].cpu() for i in valdiation_step_outputs])
+        self.logger.experiment.add_scalar(f'Validation/Loss/Total', loss.mean(), self.current_epoch)
+
+
+        pred_no7 = [i["pred1"].cpu().numpy() for i in valdiation_step_outputs]
+        pred_no7 = np.concatenate(pred_no7)
+        target_no7 = [i["target1"].cpu().numpy() for i in valdiation_step_outputs]
+        target_no7 = np.concatenate(target_no7)
+
+        pred_no22 = [i["pred2"].cpu().numpy() for i in valdiation_step_outputs]
+        pred_no22 = np.concatenate(pred_no22)
+        target_no22 = [i["target2"].cpu().numpy() for i in valdiation_step_outputs]
+        target_no22 = np.concatenate(target_no22)
+
+        pred_no38 = [i["pred3"].cpu().numpy() for i in valdiation_step_outputs]
+        pred_no38 = np.concatenate(pred_no38)
+        target_no38 = [i["target3"].cpu().numpy() for i in valdiation_step_outputs]
+        target_no38 = np.concatenate(target_no38)
+
+        self.log("val_loss", loss.mean())
+
+
+        self.display_prediction(pred_no7, pred_no22, pred_no38, target_no7, target_no22, target_no38, "Validation")
+
+    
+    def display_prediction(self, pred_no7, pred_no22, pred_no38, target_no7, target_no22, target_no38, mode):
+
+            df = pd.DataFrame({
+                "No.7 Prediction (%)": pred_no7*100, 
+                "No.7 Target (%)": target_no7*100, 
+                "No.22 Prediction (%)": pred_no22*100, 
+                "No.22 Target (%)": target_no22*100, 
+                "No.38 Prediction (%)": pred_no38*100, 
+                "No.38 Target (%)": target_no38*100, 
+            })
+    
+            df.to_csv(os.path.join(self.trainer.log_dir, f"{mode}.csv"), index=False)
+
+
+class ResNet18(LightningModule):
+    def __init__(self):
+        super(ResNet18, self).__init__()
+        self.model = ResNet(Bottleneck, [2, 2, 2, 2], num_classes=3, num_channels=5)
+        self.save_hyperparameters()
+        
+
+    def forward(self, x):
+        x = self.model(x)
         return x
     
     def configure_optimizers(self):

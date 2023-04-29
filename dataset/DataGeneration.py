@@ -27,8 +27,8 @@ def one_hot(label):
 
 
 class DamageDataGenerationDataset(Dataset):
-    def __init__(self, path) -> None:
-        self.root = os.path.join(path, "Displacement")
+    def __init__(self, path, source) -> None:
+        self.root = os.path.join(path, source)
         self.min_max = pd.read_csv(os.path.join(self.root, "min_max.csv")).values
 
         self.files = []

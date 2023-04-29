@@ -81,7 +81,7 @@ class Decoder(nn.Module):
 
 class EncoderDecoder(LightningModule):
 
-    def __init__(self, source, transfer=False, pretrain=False):
+    def __init__(self, source="Displacement", transfer=False, pretrain=False):
         super().__init__()
         if transfer :
             if source == "Displacement":
