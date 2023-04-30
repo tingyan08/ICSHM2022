@@ -247,9 +247,9 @@ class ResNet18(LightningModule):
 class ResNet18_finetune(LightningModule):
     def __init__(self):
         super(ResNet18_finetune, self).__init__()
-        state_dict = torch.load("./Logs/Identification/classification-ResNet18_finetune-Displacement/finetune_real_with_synthetic/version_0/checkpoints/epoch=00019-val_acc=0.5052.ckpt")["state_dict"]
+        state_dict = torch.load("./Logs/Identification/classification-Displacement_no6-ResNet18/LAST/version_0/checkpoints/epoch=00045-val_acc=0.4539.ckpt")["state_dict"]
         self.model = ResNet18(num_classes=216)
-        self.load_state_dict(state_dict=state_dict)
+        self.model.load_state_dict(state_dict=state_dict)
         self.model = self.model.to(self.device)
         self.save_hyperparameters()
         

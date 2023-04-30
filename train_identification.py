@@ -104,7 +104,7 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=int, default=1,  help = 'GPU id (If use the GPU)')
     parser.add_argument('--max_epoch', type=int, default=200, help = 'Maximun epochs')
 
-    parser.add_argument('--arch', type=str,  default="regression", help = 'The file where trainer located')
+    parser.add_argument('--arch', type=str,  default="classification", help = 'The file where trainer located')
     parser.add_argument('--trainer', type=str,  default="ResNet18", help = 'The trainer we used')
 
     parser.add_argument('--transfer', action="store_true", default=False, help = 'Transfer the encoder and freeze')
